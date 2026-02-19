@@ -3,7 +3,7 @@
   "Name": "Understudy",
   "InternalName": "Understudy",
   "Punchline": "Your raid progression and currency tracker.",
-  "AssemblyVersion": "0.1.0.0",
+  "AssemblyVersion": "1.0.0.0",
   "Description": "Tracks raid progression, tomestones, and gear.",
   "ApplicableVersion": "any",
   "IconUrl": "https://raw.githubusercontent.com/aventurescence/Understudy/main/images/icon.png",
