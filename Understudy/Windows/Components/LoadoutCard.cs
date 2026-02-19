@@ -1,0 +1,304 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using Dalamud.Interface.Textures;
+using Dalamud.Bindings.ImGui;
+
+namespace Understudy.Windows.Components;
+
+/// <summary>
+/// Renders a single combined loadout card for a job, showing current gear vs BiS
+/// targets with collapsible header bar and expanded content.
+/// </summary>
+public class LoadoutCard
+{
+    private readonly Plugin plugin;
+    private readonly BiSComparisonView bisView;
+    private readonly MateriaDisplay materiaDisplay;
+
+    public LoadoutCard(Plugin plugin, BiSComparisonView bisView, MateriaDisplay materiaDisplay)
+    {
+        this.plugin = plugin;
+        this.bisView = bisView;
+        this.materiaDisplay = materiaDisplay;
+    }
+
+    public void Draw(uint jobId, GearSetData? gearSet, BiSData? bisData, ref uint? jobToRemove, ref uint? bisToRemove)
+    {
+        var dl = ImGui.GetWindowDrawList();
+        var jobAbbr = SharedDrawHelpers.GetJobAbbreviation(jobId);
+
+        float avgIL = gearSet?.AverageItemLevel ?? 0f;
+        var ilText = avgIL > 0 ? $"IL {avgIL:F0}" : "No Gear";
+
+        var ilColor = avgIL >= Theme.ILThresholdMax ? Theme.ILTierMax
+                    : avgIL >= Theme.ILThresholdHigh ? Theme.AccentSuccess
+                    : avgIL >= Theme.ILThresholdMid ? Theme.AccentWarning
+                    : Theme.TextSecondary;
+
+        List<BiSSlotComparison>? comparisons = null;
+        AcquisitionCosts? costs = null;
+        int ownedCount = 0;
+        int totalSlots = 0;
+
+        if (bisData != null && bisData.Items.Count > 0)
+        {
+            var result = plugin.BiSManager.Compare(jobId);
+            comparisons = result.Comparisons;
+            costs = result.Costs;
+            ownedCount = comparisons.Count(c => c.IsOwned);
+            totalSlots = comparisons.Count;
+        }
+
+        bool hasBiS = comparisons != null && totalSlots > 0;
+
+        // ── Header Bar ──
+        var startPos = ImGui.GetCursorScreenPos();
+        var width = ImGui.GetContentRegionAvail().X - Theme.CardPadding * 2;
+        var headerRect = new Vector2(width, Theme.GearHeaderHeight);
+
+        ImGui.InvisibleButton($"##LoadoutHeader_{jobId}", headerRect);
+        bool isHovered = ImGui.IsItemHovered();
+        bool clicked = ImGui.IsItemClicked();
+
+        // Context menu
+        if (ImGui.BeginPopupContextItem($"LoadoutCtx##{jobId}"))
+        {
+            if (gearSet != null)
+            {
+                string deleteLabel = hasBiS ? $"Delete [{jobAbbr}] Loadout (Gear + BiS)" : $"Delete [{jobAbbr}] Gearset";
+                if (ImGui.Selectable(deleteLabel)) jobToRemove = jobId;
+            }
+            if (hasBiS)
+            {
+                if (ImGui.Selectable($"Delete [{jobAbbr}] BiS Only")) bisToRemove = jobId;
+            }
+            ImGui.EndPopup();
+        }
+
+        // Toggle open/closed
+        var storageId = ImGui.GetID($"LoadoutOpen_{jobId}");
+        var storage = ImGui.GetStateStorage();
+        bool isOpen = storage.GetBool(storageId, true);
+        if (clicked)
+        {
+            isOpen = !isOpen;
+            storage.SetBool(storageId, isOpen);
+        }
+
+        // Header background
+        var barColor = isHovered ? Theme.GearHeaderHover : Theme.GearHeaderBar;
+        var barEnd = startPos + headerRect;
+        var rounding = Theme.GearCardRounding;
+        var flags = isOpen
+            ? (ImDrawFlags.RoundCornersTopLeft | ImDrawFlags.RoundCornersTopRight)
+            : ImDrawFlags.RoundCornersAll;
+        dl.AddRectFilled(startPos, barEnd, ImGui.GetColorU32(barColor), rounding, flags);
+
+        // Left accent line
+        dl.AddLine(
+            startPos + new Vector2(0, 4),
+            startPos + new Vector2(0, headerRect.Y - 4),
+            ImGui.GetColorU32(Theme.AccentPrimary with { W = 0.7f }),
+            2.5f);
+
+        // Job Icon
+        float iconSize = 24f;
+        float iconPadY = (headerRect.Y - iconSize) * 0.5f;
+        var iconPos = startPos + new Vector2(12, iconPadY);
+        bool drewJobIcon = false;
+
+        var classJobSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.ClassJob>();
+        if (classJobSheet != null && classJobSheet.TryGetRow(jobId, out var cjRow))
+        {
+            uint jobIconId = 62100u + jobId;
+            var tex = Plugin.TextureProvider.GetFromGameIcon(new GameIconLookup(jobIconId));
+            if (tex.TryGetWrap(out var wrap, out _))
+            {
+                dl.AddImage(wrap.Handle, iconPos, iconPos + new Vector2(iconSize, iconSize));
+                drewJobIcon = true;
+            }
+        }
+
+        if (!drewJobIcon)
+        {
+            dl.AddRectFilled(iconPos, iconPos + new Vector2(iconSize, iconSize),
+                ImGui.GetColorU32(Theme.AccentPrimary with { W = 0.3f }), 4f);
+        }
+
+        // Job Abbreviation Badge
+        float textStartX = iconPos.X + iconSize + 8;
+        float textPadY = (headerRect.Y - ImGui.GetTextLineHeight()) * 0.5f;
+
+        var abbrSize = ImGui.CalcTextSize(jobAbbr);
+        var badgePos = new Vector2(textStartX, startPos.Y + textPadY - 2);
+        var badgeEnd = badgePos + abbrSize + new Vector2(12, 4);
+        dl.AddRectFilled(badgePos, badgeEnd, ImGui.GetColorU32(Theme.JobBadgeBg), 4f);
+        dl.AddText(badgePos + new Vector2(6, 2), ImGui.GetColorU32(Theme.AccentPrimary), jobAbbr);
+
+        // IL Pill Badge
+        if (avgIL > 0)
+        {
+            var ilSize = ImGui.CalcTextSize(ilText);
+            var pillPos = new Vector2(badgeEnd.X + 10, startPos.Y + textPadY - 2);
+            var pillEnd = pillPos + ilSize + new Vector2(14, 4);
+            dl.AddRectFilled(pillPos, pillEnd, ImGui.GetColorU32(ilColor with { W = 0.15f }), 10f);
+            dl.AddRect(pillPos, pillEnd, ImGui.GetColorU32(ilColor with { W = 0.3f }), 10f);
+            dl.AddText(pillPos + new Vector2(7, 2), ImGui.GetColorU32(ilColor), ilText);
+
+            if (hasBiS)
+            {
+                var bisText = $"{ownedCount}/{totalSlots} BiS";
+                var bisColor = ownedCount == totalSlots
+                    ? Theme.AccentSuccess
+                    : ownedCount >= totalSlots * 0.5f
+                        ? Theme.AccentWarning
+                        : Theme.AccentDanger;
+
+                var bisSize = ImGui.CalcTextSize(bisText);
+                var bisPillPos = new Vector2(pillEnd.X + 8, startPos.Y + textPadY - 2);
+                var bisPillEnd = bisPillPos + bisSize + new Vector2(14, 4);
+                dl.AddRectFilled(bisPillPos, bisPillEnd, ImGui.GetColorU32(bisColor with { W = 0.15f }), 10f);
+                dl.AddRect(bisPillPos, bisPillEnd, ImGui.GetColorU32(bisColor with { W = 0.4f }), 10f);
+                dl.AddText(bisPillPos + new Vector2(7, 2), ImGui.GetColorU32(bisColor), bisText);
+            }
+        }
+
+        // Expand/Collapse Arrow
+        var arrowText = isOpen ? "▼" : "▶";
+        var arrowSize = ImGui.CalcTextSize(arrowText);
+        var arrowPos = new Vector2(barEnd.X - arrowSize.X - 10, startPos.Y + textPadY);
+        dl.AddText(arrowPos, ImGui.GetColorU32(Theme.TextDisabled), arrowText);
+
+        // Last Updated timestamp
+        DateTime lastUpdated = gearSet?.LastUpdated ?? bisData?.LastUpdated ?? default;
+        if (lastUpdated != default)
+        {
+            var timeText = $"Last Updated: {lastUpdated:MMM dd HH:mm}";
+            var timeSize = ImGui.CalcTextSize(timeText);
+            var timePos = new Vector2(arrowPos.X - timeSize.X - 12, startPos.Y + textPadY);
+            dl.AddText(timePos, ImGui.GetColorU32(Theme.TextDisabled), timeText);
+        }
+
+        // Tooltip
+        if (isHovered)
+        {
+            ImGui.BeginTooltip();
+            ImGui.TextColored(Theme.AccentPrimary, $"{jobAbbr} — {ilText}");
+            if (hasBiS)
+                ImGui.TextColored(Theme.TextSecondary, $"BiS progress: {ownedCount}/{totalSlots} slots");
+            ImGui.TextColored(Theme.TextSecondary, "Click to expand/collapse");
+            ImGui.TextColored(Theme.TextDisabled, "Right-click to delete");
+            ImGui.EndTooltip();
+        }
+
+        // ── Expanded Content ──
+        if (isOpen)
+        {
+            var contentStart = ImGui.GetCursorScreenPos();
+            ImGui.BeginGroup();
+            ImGui.Spacing();
+
+            if (hasBiS)
+            {
+                bisView.DrawComparatorSplit(comparisons!);
+                ImGui.Spacing();
+                if (costs != null)
+                    bisView.DrawCompactCostSummary(costs);
+            }
+            else if (gearSet != null)
+            {
+                DrawGearSplit(gearSet);
+                ImGui.Spacing();
+                ImGui.TextColored(Theme.LinkAction, "  → Set up a BiS target to see slot-by-slot comparison");
+            }
+            else
+            {
+                ImGui.TextColored(Theme.TextDisabled, "  Track a gearset or import BiS to see details.");
+            }
+
+            ImGui.Spacing();
+            ImGui.EndGroup();
+
+            var contentEnd = ImGui.GetItemRectMax();
+            var cMin = new Vector2(startPos.X, contentStart.Y);
+            var cMax = new Vector2(startPos.X + width, contentEnd.Y + 4);
+
+            dl.AddRectFilled(cMin, cMax,
+                ImGui.GetColorU32(Theme.GearHeaderBar with { W = 0.4f }),
+                0f, ImDrawFlags.RoundCornersBottom);
+
+            dl.AddLine(
+                cMax with { X = startPos.X },
+                cMax,
+                ImGui.GetColorU32(Theme.BorderSubtle),
+                1f);
+        }
+
+        ImGui.Spacing();
+        ImGui.Spacing();
+    }
+
+    private void DrawGearSplit(GearSetData gearSet)
+    {
+        var width = ImGui.GetContentRegionAvail().X - Theme.CardPadding * 2;
+        if (ImGui.BeginTable("GearSplit", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg, new Vector2(width, 0)))
+        {
+            try
+            {
+                ImGui.TableSetupColumn("Left Side");
+                ImGui.TableSetupColumn("Right Side");
+                ImGui.TableNextRow();
+
+                ImGui.TableNextColumn();
+                DrawGearColumn(gearSet, new[] { 0, 1, 2, 3, 4, 6, 7 });
+
+                ImGui.TableNextColumn();
+                DrawGearColumn(gearSet, new[] { 8, 9, 10, 11, 12 });
+            }
+            finally
+            {
+                ImGui.EndTable();
+            }
+        }
+    }
+
+    private void DrawGearColumn(GearSetData gearSet, int[] slots)
+    {
+        foreach (var slotId in slots)
+        {
+            var item = gearSet.Items.FirstOrDefault(x => x.Slot == slotId);
+
+            if (slotId == 1 && item == null)
+                continue;
+
+            ImGui.AlignTextToFramePadding();
+
+            if (item != null)
+            {
+                SharedDrawHelpers.DrawItemIcon(item.ItemId);
+                ImGui.SameLine();
+
+                var ilColor = item.ItemLevel >= Theme.ILThresholdHigh ? Theme.AccentSuccess
+                            : item.ItemLevel >= Theme.ILThresholdMid ? Theme.AccentWarning
+                            : Theme.TextPrimary;
+
+                ImGui.TextColored(ilColor, item.Name);
+
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.BeginTooltip();
+                    ImGui.TextColored(Theme.AccentSecondary, $"IL {item.ItemLevel}");
+                    ImGui.EndTooltip();
+                }
+            }
+            else
+            {
+                ImGui.Dummy(new Vector2(24, 24));
+                ImGui.SameLine();
+                ImGui.TextColored(Theme.TextDisabled, $"{SharedDrawHelpers.GetSlotName(slotId)}  -");
+            }
+        }
+    }
+}
