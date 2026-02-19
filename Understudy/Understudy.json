@@ -6,8 +6,7 @@
   "AssemblyVersion": "1.0.0.0",
   "Description": "Tracks raid progression, tomestones, and gear.",
   "ApplicableVersion": "any",
-  "IconUrl": "https://raw.githubusercontent.com/aventurescence/Understudy/main/images/icon.png",
-  "ImageUrls": [],
+  "IconUrl": "https://raw.githubusercontent.com/aventurescence/churinplugins/main/icon.png",
   "Tags": [
     "raid",
     "tomestones",
