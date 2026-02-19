@@ -39,7 +39,7 @@ jobs:
         Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
 
     - name: Build
-      run: dotnet build --configuration Release
+      run: dotnet build Understudy/Understudy.sln --configuration Release
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
