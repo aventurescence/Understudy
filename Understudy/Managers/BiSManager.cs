@@ -12,6 +12,8 @@ namespace Understudy.Managers;
 
 public class BiSManager
 {
+    private class EtroFoodItem { public uint id { get; set; } public uint item { get; set; } }
+    private Dictionary<uint, uint>? cachedEtroFoodMap = null;
     private readonly Plugin plugin;
     private readonly IDataManager dataManager;
     private readonly IPluginLog log;
@@ -98,6 +100,7 @@ public class BiSManager
         public uint? wrists { get; set; }
         public uint? fingerL { get; set; }
         public uint? fingerR { get; set; }
+        public uint? food { get; set; }
         public Dictionary<string, Dictionary<string, uint>>? materia { get; set; }
     }
 
@@ -107,27 +110,67 @@ public class BiSManager
         var data = System.Text.Json.JsonSerializer.Deserialize<EtroResponse>(response);
         if (data == null) throw new Exception("Empty response from Etro");
 
+        uint resolvedFoodId = 0;
+        if (data.food.HasValue && data.food.Value > 0)
+        {
+            try
+            {
+                if (cachedEtroFoodMap == null)
+                {
+                    var foodJson = await plugin.HttpClient.GetStringAsync("https://etro.gg/api/food/");
+                    var foodList = System.Text.Json.JsonSerializer.Deserialize<List<EtroFoodItem>>(foodJson);
+                    if (foodList != null)
+                        cachedEtroFoodMap = foodList.ToDictionary(f => f.id, f => f.item);
+                }
+                
+                if (cachedEtroFoodMap != null && cachedEtroFoodMap.TryGetValue(data.food.Value, out var mappedItem))
+                {
+                    resolvedFoodId = mappedItem;
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.Warning(ex, $"[Understudy] Failed to fetch Etro food mapping for id {data.food}");
+            }
+        }
+
         var bis = new BiSData
         {
             JobId = jobId,
             SourceType = "etro",
             SourceUrl = originalUrl,
             Name = data.name ?? string.Empty,
-            LastUpdated = DateTime.UtcNow
+            LastUpdated = DateTime.UtcNow,
+            FoodId = resolvedFoodId
         };
 
-        void AddSlot(int slotId, uint? itemId)
+        void AddSlot(int slotId, uint? itemId, string? slotKeyOverride = null)
         {
             if (itemId == null || itemId == 0) return;
             var item = CreateBiSItem((uint)itemId, slotId);
             
             // Materia
-            if (data.materia != null && data.materia.TryGetValue(itemId.ToString()!, out var slots))
+            string key = itemId.ToString()!;
+            string keyOverride = slotKeyOverride ?? key;
+            
+            if (data.materia != null)
             {
-                for (int i = 1; i <= 5; i++)
+                Plugin.Log.Debug($"[Understudy] Etro: Looking for materia. SlotId: {slotId}, ItemId: {itemId}, KeyOverride: {keyOverride}");
+                if (data.materia.TryGetValue(keyOverride, out var slots) ||
+                    data.materia.TryGetValue(key, out slots) ||
+                    data.materia.TryGetValue(key + "R", out slots) ||
+                    data.materia.TryGetValue(key + "L", out slots))
                 {
-                    if (slots.TryGetValue(i.ToString(), out var matId))
-                        item.Materia[i - 1] = matId;
+                    Plugin.Log.Debug($"[Understudy] Etro: Found materia for slot {slotId}.");
+                    for (int i = 1; i <= 5; i++)
+                    {
+                        if (slots.TryGetValue(i.ToString(), out var matId))
+                            item.Materia[i - 1] = matId;
+                    }
+                }
+                else
+                {
+                    Plugin.Log.Warning($"[Understudy] Etro: NO materia found for slot {slotId}. Tried keys: {keyOverride}, {key}, {key}R, {key}L");
                 }
             }
             
@@ -144,8 +187,8 @@ public class BiSManager
         AddSlot(8, data.ears);
         AddSlot(9, data.neck);
         AddSlot(10, data.wrists);
-        AddSlot(11, data.fingerR);
-        AddSlot(12, data.fingerL);
+        AddSlot(11, data.fingerR, data.fingerR + "R");
+        AddSlot(12, data.fingerL, data.fingerL + "L");
 
         SaveBiS(jobId, bis);
     }
@@ -264,10 +307,6 @@ public class BiSManager
 
     private string GetSavageFloor(int slot)
     {
-        // M1: Accessories
-        // M2: Head, Hands, Feet
-        // M3: Body, Legs
-        // M4: Weapon
         return slot switch
         {
             0 => "M4", // Weapon
@@ -276,6 +315,69 @@ public class BiSManager
             8 or 9 or 10 or 11 or 12 => "M1", // Accessories
             _ => ""
         };
+    }
+
+    public string GetSourceAcquisition(BiSItem item, ref AcquisitionCosts costs)
+    {
+        switch (item.Source)
+        {
+            case GearSource.Savage:
+                // Needs Book and potentially Twine/Glaze/Solvent later if augmented
+                string floor = GetSavageFloor(item.Slot);
+                if (costs.BooksNeeded.ContainsKey(floor))
+                    costs.BooksNeeded[floor]++;
+                else
+                    costs.BooksNeeded[floor] = 1;
+
+                return $"{floor} Drop / Book";
+
+            case GearSource.AugmentedTomestone:
+                // Needs Base Tome + Upgrade Material
+                // Base Cost
+                int tomes = item.Slot switch
+                {
+                    0 => 500, // Weapon (augmented)
+                    3 or 6 => 825, // Body/Legs
+                    2 or 4 or 7 => 495, // Head/Hands/Feet
+                    _ => 375 // Accessories
+                };
+                costs.TomestonesNeeded += tomes;
+
+                // Weapon also needs Universal Tomestone 3.0
+                if (item.Slot == 0) costs.UniversalTomestonesNeeded += 1;
+
+                // Material
+                if (item.Slot == 0) // Weapon
+                    costs.SolventNeeded++;
+                else if (new[] { 2, 3, 4, 6, 7 }.Contains(item.Slot)) // Left side
+                    costs.TwineNeeded++;
+                else // Right side
+                    costs.GlazeNeeded++;
+
+                return "Tomes + Upgrade";
+
+            case GearSource.Tomestone:
+                // Unaugmented
+                int baseTomes = item.Slot switch
+                {
+                    0 => 500,
+                    3 or 6 => 825,
+                    2 or 4 or 7 => 495,
+                    _ => 375
+                };
+                costs.TomestonesNeeded += baseTomes;
+                if (item.Slot == 0) costs.UniversalTomestonesNeeded += 1;
+                return $"{baseTomes} Tomes";
+        }
+
+        return "Unknown";
+    }
+
+    public uint ResolveEtroFoodId(uint etroFoodId)
+    {
+        if (cachedEtroFoodMap != null && cachedEtroFoodMap.TryGetValue(etroFoodId, out var ffxivId))
+            return ffxivId;
+        return 0;
     }
 
     private void SaveBiS(uint jobId, BiSData bis)
@@ -316,6 +418,18 @@ public class BiSManager
             var currentItem = currentGear.Items.FirstOrDefault(x => x.Slot == slot);
             
             var isOwned = currentItem != null && currentItem.ItemId == bisItem.ItemId;
+
+            if (!isOwned && (slot == 11 || slot == 12))
+            {
+                var oppositeSlot = slot == 11 ? 12 : 11;
+                var oppositeItem = currentGear.Items.FirstOrDefault(x => x.Slot == oppositeSlot);
+                if (oppositeItem != null && oppositeItem.ItemId == bisItem.ItemId)
+                {
+                    isOwned = true;
+                    currentItem = oppositeItem;
+                }
+            }
+            
             var label = "";
 
             if (!isOwned)
@@ -451,7 +565,95 @@ public class BiSManager
         item.FloorSource = item.Source == GearSource.Savage ? GetSavageFloor(item.Slot) : string.Empty;
     }
 
+    public void SetBiSFood(uint jobId, uint foodItemId)
+    {
+        var contentId = Plugin.PlayerState.ContentId;
+        if (contentId == 0) return;
+
+        if (!plugin.Configuration.Characters.TryGetValue(contentId, out var charData))
+            return;
+
+        if (!charData.BisSets.TryGetValue(jobId, out var set))
+        {
+            set = new BiSData { JobId = jobId, SourceType = "manual", Name = "Manual Set" };
+            charData.BisSets[jobId] = set;
+        }
+
+        set.FoodId = foodItemId;
+        plugin.Configuration.Save();
+    }
+
     // ── Etro.gg API ────────────────────────────────────────────────
+
+    private readonly Dictionary<string, EtroGearsetDetail> cachedGearsetDetails = new();
+
+    public EtroGearsetDetail? GetCachedGearsetDetail(string id)
+    {
+        return cachedGearsetDetails.TryGetValue(id, out var detail) ? detail : null;
+    }
+
+    public void FetchEtroGearsetDetail(string id)
+    {
+        if (cachedGearsetDetails.ContainsKey(id)) return;
+        Task.Run(async () =>
+        {
+            try
+            {
+                var response = await plugin.HttpClient.GetStringAsync($"https://etro.gg/api/gearsets/{id}");
+                var data = System.Text.Json.JsonSerializer.Deserialize<EtroResponse>(response);
+                if (data == null) return;
+
+                var detail = new EtroGearsetDetail();
+                var itemSheet = dataManager.GetExcelSheet<Item>();
+
+                void AddDetailSlot(int slotId, uint? itemId)
+                {
+                    if (itemId == null || itemId == 0 || itemSheet == null) return;
+                    if (itemSheet.TryGetRow(itemId.Value, out var row))
+                    {
+                        detail.Items[slotId] = new EtroGearsetSlot
+                        {
+                            ItemId = itemId.Value,
+                            Name = row.Name.ToString(),
+                            ItemLevel = row.LevelItem.RowId
+                        };
+                    }
+                }
+
+                AddDetailSlot(0, data.weapon);
+                AddDetailSlot(1, data.offHand);
+                AddDetailSlot(2, data.head);
+                AddDetailSlot(3, data.body);
+                AddDetailSlot(4, data.hands);
+                AddDetailSlot(6, data.legs);
+                AddDetailSlot(7, data.feet);
+                AddDetailSlot(8, data.ears);
+                AddDetailSlot(9, data.neck);
+                AddDetailSlot(10, data.wrists);
+                AddDetailSlot(11, data.fingerR);
+                AddDetailSlot(12, data.fingerL);
+
+                if (data.food.HasValue && data.food.Value > 0)
+                {
+                    if (cachedEtroFoodMap == null)
+                    {
+                        var foodJson = await plugin.HttpClient.GetStringAsync("https://etro.gg/api/food/");
+                        var foodList = System.Text.Json.JsonSerializer.Deserialize<List<EtroFoodItem>>(foodJson);
+                        if (foodList != null)
+                            cachedEtroFoodMap = foodList.ToDictionary(f => f.id, f => f.item);
+                    }
+                    if (cachedEtroFoodMap != null && cachedEtroFoodMap.TryGetValue(data.food.Value, out var mappedItem))
+                        detail.FoodId = mappedItem;
+                }
+
+                cachedGearsetDetails[id] = detail;
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex, $"Failed to fetch Etro gearset detail for {id}");
+            }
+        });
+    }
 
     private List<EtroBiSSet>? cachedEtroSets = null;
     private DateTime cachedEtroSetsTime = DateTime.MinValue;
@@ -475,6 +677,31 @@ public class BiSManager
         }
 
         if (cachedEtroSets == null) return new List<EtroBiSSet>();
+
+        // Extract GCD from totalParams for each set
+        foreach (var set in cachedEtroSets)
+        {
+            if (set.totalParams != null)
+            {
+                foreach (var param in set.totalParams)
+                {
+                    if (param.TryGetProperty("name", out var nameElem) &&
+                        param.TryGetProperty("value", out var valElem) &&
+                        valElem.ValueKind == System.Text.Json.JsonValueKind.Number)
+                    {
+                        var name = nameElem.GetString();
+                        if (name == "GCD" && set.gcd == 0)
+                        {
+                            set.gcd = valElem.GetSingle();
+                        }
+                        else if (name == "Average Item Level")
+                        {
+                            set.AverageItemLevel = (int)valElem.GetSingle();
+                        }
+                    }
+                }
+            }
+        }
 
         return cachedEtroSets.Where(s => s.job == (int)jobId).ToList();
     }

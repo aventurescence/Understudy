@@ -107,13 +107,55 @@ internal static class SharedDrawHelpers
                     var max = ImGui.GetItemRectMax();
                     var dl = ImGui.GetWindowDrawList();
                     dl.AddRect(min, max, ImGui.GetColorU32(Theme.AccentSuccess with { W = 0.6f }), 4f, ImDrawFlags.None, 2.0f);
-                }
+                    
+                    var texCheck = Plugin.TextureProvider.GetFromGame("ui/uld/Journal_Detail_hr1.tex");
+                    if (!texCheck.TryGetWrap(out var checkWrap, out _))
+                    {
+                        texCheck = Plugin.TextureProvider.GetFromGame("ui/uld/Journal_Detail.tex");
+                        texCheck.TryGetWrap(out checkWrap, out _);
+                    }
 
-                var statusColor = isDone ? Theme.AccentSuccess : Theme.TextDisabled;
-                var text = isDone ? "CLEARED" : "INCOMPLETE";
-                var textWidth = ImGui.CalcTextSize(text).X;
-                ImGui.SetCursorPosX(ImGui.GetCursorPosX() + (ImGui.GetContentRegionAvail().X - textWidth) * 0.5f);
-                ImGui.TextColored(statusColor, text);
+                    if (checkWrap != null)
+                    {
+                        var uv0 = new Vector2(944f / checkWrap.Width, 96f / checkWrap.Height);
+                        var uv1 = new Vector2((944f + 96f) / checkWrap.Width, (96f + 96f) / checkWrap.Height);
+
+                        var size = 32f; 
+                        var iconPos = max - new Vector2(size + 6f, size + 6f);
+                        dl.AddImage(checkWrap.Handle, iconPos, iconPos + new Vector2(size, size), uv0, uv1);
+                    }
+                    else
+                    {
+                        var size = ImGui.CalcTextSize("\uF00C");
+                        var iconPos = max - new Vector2(size.X + 8f, size.Y + 8f);
+                        ImGui.SetCursorScreenPos(iconPos);
+                        ImGui.TextColored(Theme.AccentSuccess, "\uF00C");
+                    }
+                }
+                else
+                {
+                    var min = ImGui.GetItemRectMin();
+                    var max = ImGui.GetItemRectMax();
+                    var dl = ImGui.GetWindowDrawList();
+
+                    var texIncomplete = Plugin.TextureProvider.GetFromGame("ui/icon/061000/061552_hr1.tex");
+                    if (texIncomplete.TryGetWrap(out var incWrap, out _))
+                    {
+                        var size = 32f;
+                        var center = (min + max) * 0.5f;
+                        var iconPos = center - new Vector2(size * 0.5f, size * 0.5f);
+                        dl.AddImage(incWrap.Handle, iconPos, iconPos + new Vector2(size, size),
+                            Vector2.Zero, Vector2.One, ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 0.7f)));
+                    }
+                    else
+                    {
+                        var text = "INCOMPLETE";
+                        var statusColor = Theme.TextDisabled;
+                        var textWidth = ImGui.CalcTextSize(text).X;
+                        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + (ImGui.GetContentRegionAvail().X - textWidth) * 0.5f);
+                        ImGui.TextColored(statusColor, text);
+                    }
+                }
                 return;
             }
         }

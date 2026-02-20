@@ -35,6 +35,9 @@ public class MateriaDisplay
         var currentList = currentMateria?.Where(x => x != 0).ToList() ?? new List<uint>();
         var neededList = bisMateria?.Where(x => x != 0).ToList() ?? new List<uint>();
 
+        var expectedNames = neededList.Select(id => sheet.TryGetRow(id, out var r) ? r.Name.ToString() : $"#{id}").ToList();
+        var expectedTooltip = expectedNames.Count > 0 ? "Expected one of:\n" + string.Join("\n", expectedNames.Select(n => $"- {n}")) : "No materia expected";
+
         int drawIndex = 0;
 
         foreach (var matId in currentList)
@@ -42,13 +45,13 @@ public class MateriaDisplay
             bool isCorrect = neededList.Remove(matId);
             bool isMismatch = !isCorrect;
 
-            DrawMateriaIcon(drawList, sheet, startPos, drawIndex, matId, isGhost: false, isError: isMismatch, isValid: isCorrect, isMissing: false);
+            DrawMateriaIcon(drawList, sheet, startPos, drawIndex, matId, isGhost: false, isError: isMismatch, isValid: isCorrect, isMissing: false, expectedTooltip: isMismatch ? expectedTooltip : null);
             drawIndex++;
         }
 
         foreach (var missingId in neededList)
         {
-            DrawMateriaIcon(drawList, sheet, startPos, drawIndex, missingId, isGhost: true, isError: true, isValid: false, isMissing: true);
+            DrawMateriaIcon(drawList, sheet, startPos, drawIndex, missingId, isGhost: true, isError: true, isValid: false, isMissing: true, expectedTooltip: null);
             drawIndex++;
         }
 
@@ -86,7 +89,7 @@ public class MateriaDisplay
         int drawIndex = 0;
         foreach (var matId in filtered)
         {
-            DrawMateriaIcon(drawList, sheet, startPos, drawIndex, matId, isGhost: false, isError: false, isValid: false, isMissing: false);
+            DrawMateriaIcon(drawList, sheet, startPos, drawIndex, matId, isGhost: false, isError: false, isValid: false, isMissing: false, expectedTooltip: null);
             drawIndex++;
         }
 
@@ -105,7 +108,7 @@ public class MateriaDisplay
         }
     }
 
-    private void DrawMateriaIcon(ImDrawListPtr drawList, Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Item> sheet, Vector2 startPos, int index, uint matId, bool isGhost, bool isError, bool isValid, bool isMissing)
+    private void DrawMateriaIcon(ImDrawListPtr drawList, Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Item> sheet, Vector2 startPos, int index, uint matId, bool isGhost, bool isError, bool isValid, bool isMissing, string? expectedTooltip)
     {
         if (!sheet.TryGetRow(matId, out var itemRow)) return;
 
@@ -150,6 +153,12 @@ public class MateriaDisplay
                 {
                     ImGui.SameLine();
                     ImGui.TextColored(Theme.TextSecondary, status);
+                }
+
+                if (!string.IsNullOrEmpty(expectedTooltip))
+                {
+                    ImGui.Spacing();
+                    ImGui.TextColored(Theme.AccentWarning, expectedTooltip);
                 }
 
                 ImGui.Image(iconWrap.Handle, new Vector2(40, 40));

@@ -39,44 +39,51 @@ public class CharacterDetail
         if (characterId == null || !plugin.Configuration.Characters.TryGetValue(characterId.Value, out var data))
             return;
 
-        // Header with "back" button and character data
+        ImGui.Indent(12f);
+
+        // Header — centered character name with world pill
         ImGui.Spacing();
 
-        ImGui.PushStyleColor(ImGuiCol.Button, Theme.BgCard);
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, Theme.BgCardHover);
-        if (ImGui.Button("<< Back")) onBackRequested();
-        ImGui.PopStyleColor(2);
+        var dl = ImGui.GetWindowDrawList();
+        var contentWidth = ImGui.GetContentRegionAvail().X;
 
-        ImGui.SameLine();
+        // Measure name at 1.5x scale
+        ImGui.SetWindowFontScale(1.5f);
+        var nameSize = ImGui.CalcTextSize(data.Name);
+        ImGui.SetWindowFontScale(1.0f);
 
-        // Large name with accent
+        var worldName = SharedDrawHelpers.GetWorldName(data.WorldId);
+        var worldText = $" {worldName} ";
+        var worldSize = ImGui.CalcTextSize(worldText);
+        var worldPillPadding = new Vector2(8, 3);
+
+        float totalWidth = nameSize.X + 12 + worldSize.X + worldPillPadding.X * 2;
+        float startX = ImGui.GetCursorPosX() + (contentWidth - totalWidth) * 0.5f;
+
+        ImGui.SetCursorPosX(startX);
         ImGui.SetWindowFontScale(1.5f);
         ImGui.TextColored(Theme.AccentPrimary, data.Name);
         ImGui.SetWindowFontScale(1.0f);
 
-        ImGui.SameLine();
+        ImGui.SameLine(0, 12);
 
-        // World badge (simulated pill shape)
-        var worldName = SharedDrawHelpers.GetWorldName(data.WorldId);
-        var badgeText = $" {worldName} ";
-        var badgeSize = ImGui.CalcTextSize(badgeText);
-        var badgePos = ImGui.GetCursorScreenPos();
-        var dl = ImGui.GetWindowDrawList();
-        dl.AddRectFilled(
-            badgePos - new Vector2(0, 2),
-            badgePos + badgeSize + new Vector2(0, 4),
-            ImGui.GetColorU32(Theme.BgCardHover),
-            10.0f);
-        ImGui.TextColored(Theme.TextSecondary, badgeText);
+        // World pill
+        var pillPos = ImGui.GetCursorScreenPos();
+        var pillMin = pillPos - new Vector2(0, 2);
+        var pillMax = pillPos + worldSize + new Vector2(worldPillPadding.X * 2, 4);
+        dl.AddRectFilled(pillMin, pillMax, ImGui.GetColorU32(Theme.BgCardHover), 10f);
+        dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(Theme.BorderSubtle with { W = 0.4f }), 10f);
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + worldPillPadding.X);
+        ImGui.TextColored(Theme.TextSecondary, worldText);
 
-        // Decorative line
+        // Decorative accent line
         ImGui.Spacing();
         var linePos = ImGui.GetCursorScreenPos();
         dl.AddLine(
             linePos,
-            linePos + new Vector2(ImGui.GetContentRegionAvail().X, 0),
-            ImGui.GetColorU32(Theme.BorderSubtle),
-            1.0f);
+            linePos + new Vector2(contentWidth, 0),
+            ImGui.GetColorU32(Theme.AccentPrimary with { W = 0.3f }),
+            1.5f);
         ImGui.Spacing();
         ImGui.Spacing();
 
@@ -184,6 +191,8 @@ public class CharacterDetail
                     ImGui.SetTooltip("Track current gear, import BiS from Etro.gg,\nor manually build a loadout.");
             }
         });
+
+        ImGui.Unindent(12f);
     }
 
     // ── Card container with background, accent border and inner margins ──

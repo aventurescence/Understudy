@@ -63,9 +63,25 @@ public static class Theme
     public const float GearHeaderHeight = 36.0f;
 
     // ── Item Level Tier Thresholds ─────────────────────────────
-    public const float ILThresholdMax  = 735f;  // Max IL (purple)
-    public const float ILThresholdHigh = 730f;  // High IL (green)
-    public const float ILThresholdMid  = 710f;  // Mid IL (gold/warning)
+    public const float ILThresholdMax  = 790f;  // Max IL (purple)
+    public const float ILThresholdHigh = 780f;  // High IL (green)
+    public const float ILThresholdMid  = 770f;  // Mid IL (gold/warning)
+
+    // ── Popup / Import UI ───────────────────────────────────────
+    public static readonly Vector4 EtroRowBg         = new(0.10f, 0.11f, 0.16f, 0.70f);
+    public static readonly Vector4 EtroRowHover      = new(0.16f, 0.17f, 0.26f, 0.90f);
+    public static readonly Vector4 EtroRowSelected   = new(0.49f, 0.42f, 1.0f, 0.12f);
+    public static readonly Vector4 InputFieldBg      = new(0.07f, 0.08f, 0.11f, 1.0f);
+    public static readonly Vector4 InputFieldBorder  = new(0.22f, 0.24f, 0.32f, 0.80f);
+    public static readonly Vector4 SlotBtnBg         = new(0.12f, 0.13f, 0.19f, 1.0f);
+    public static readonly Vector4 SlotBtnHover      = new(0.18f, 0.20f, 0.30f, 1.0f);
+    public static readonly Vector4 SectionHeaderBg   = new(0.08f, 0.09f, 0.13f, 0.60f);
+    public static readonly Vector4 TabActiveBg       = new(0.49f, 0.42f, 1.0f, 0.20f);
+    public static readonly Vector4 ProviderEtro      = new(0.38f, 0.78f, 0.95f, 1.0f);   // Etro cyan
+    public static readonly Vector4 ProviderXIVGear   = new(0.95f, 0.65f, 0.30f, 1.0f);   // XIVGear amber
+    public const float PopupRounding = 12.0f;
+    public const float RowRounding   = 6.0f;
+    public const float SlotBtnSize   = 48.0f;
 
     // ── Combined Loadout Card ────────────────────────────────────
     public static readonly Vector4 BiSProgressBg     = new(0.10f, 0.11f, 0.16f, 1.0f);   // Dark track

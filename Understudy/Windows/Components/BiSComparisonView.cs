@@ -21,7 +21,7 @@ public class BiSComparisonView
 
 
 
-    public void DrawComparatorSplit(List<BiSSlotComparison> comparisons)
+    public void DrawComparatorSplit(List<BiSSlotComparison> comparisons, BiSData? bisData)
     {
         var width = ImGui.GetContentRegionAvail().X - Theme.CardPadding * 2;
         if (ImGui.BeginTable("CmpSplit", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg, new Vector2(width, 0)))
@@ -37,6 +37,22 @@ public class BiSComparisonView
 
                 ImGui.TableNextColumn();
                 DrawComparatorColumn(comparisons, new[] { 8, 9, 10, 11, 12 });
+                
+                if (bisData != null && bisData.FoodId != 0)
+                {
+                    ImGui.Spacing();
+                    ImGui.AlignTextToFramePadding();
+                    SharedDrawHelpers.DrawItemIcon(bisData.FoodId, 32f);
+                    ImGui.SameLine();
+
+                    var itemSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Item>();
+                    if (itemSheet != null && itemSheet.TryGetRow(bisData.FoodId, out var foodItem))
+                    {
+                        ImGui.TextColored(Theme.AccentPrimary, foodItem.Name.ToString());
+                        ImGui.SameLine();
+                        ImGui.TextColored(Theme.TextDisabled, "(BiS Food)");
+                    }
+                }
             }
             finally
             {

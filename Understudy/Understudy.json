@@ -3,8 +3,8 @@
   "Name": "Understudy",
   "InternalName": "Understudy",
   "Punchline": "Your raid progression and currency tracker.",
-  "AssemblyVersion": "1.0.0.0",
-  "Description": "Tracks raid progression, tomestones, and gear.",
+  "AssemblyVersion": "0.0.0.0",
+  "Description": "Tracks weekly raid lockout, tomestones, gear, and other miscellaneous things.",
   "ApplicableVersion": "any",
   "IconUrl": "https://raw.githubusercontent.com/aventurescence/churinplugins/main/icon.png",
   "Tags": [
@@ -14,3 +14,7 @@
     "tracking"
   ]
 } 
+
+
+
+

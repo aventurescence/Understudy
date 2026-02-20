@@ -112,6 +112,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         // Base Classes
         1,  // GLD
+        2,  // PGL
         3,  // MRD
         4,  // LNC
         5,  // ARC

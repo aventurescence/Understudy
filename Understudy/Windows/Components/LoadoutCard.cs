@@ -137,32 +137,37 @@ public class LoadoutCard
         dl.AddRectFilled(badgePos, badgeEnd, ImGui.GetColorU32(Theme.JobBadgeBg), 4f);
         dl.AddText(badgePos + new Vector2(6, 2), ImGui.GetColorU32(Theme.AccentPrimary), jobAbbr);
 
+        // Pills origin
+        Vector2 currentPillEnd = badgeEnd;
+
         // IL Pill Badge
         if (avgIL > 0)
         {
             var ilSize = ImGui.CalcTextSize(ilText);
-            var pillPos = new Vector2(badgeEnd.X + 10, startPos.Y + textPadY - 2);
+            var pillPos = new Vector2(currentPillEnd.X + 10, startPos.Y + textPadY - 2);
             var pillEnd = pillPos + ilSize + new Vector2(14, 4);
             dl.AddRectFilled(pillPos, pillEnd, ImGui.GetColorU32(ilColor with { W = 0.15f }), 10f);
             dl.AddRect(pillPos, pillEnd, ImGui.GetColorU32(ilColor with { W = 0.3f }), 10f);
             dl.AddText(pillPos + new Vector2(7, 2), ImGui.GetColorU32(ilColor), ilText);
+            currentPillEnd = pillEnd;
+        }
 
-            if (hasBiS)
-            {
-                var bisText = $"{ownedCount}/{totalSlots} BiS";
-                var bisColor = ownedCount == totalSlots
-                    ? Theme.AccentSuccess
-                    : ownedCount >= totalSlots * 0.5f
-                        ? Theme.AccentWarning
-                        : Theme.AccentDanger;
+        if (hasBiS)
+        {
+            var bisText = $"{ownedCount}/{totalSlots} BiS";
+            var bisColor = ownedCount == totalSlots
+                ? Theme.AccentSuccess
+                : ownedCount >= totalSlots * 0.5f
+                    ? Theme.AccentWarning
+                    : Theme.AccentDanger;
 
-                var bisSize = ImGui.CalcTextSize(bisText);
-                var bisPillPos = new Vector2(pillEnd.X + 8, startPos.Y + textPadY - 2);
-                var bisPillEnd = bisPillPos + bisSize + new Vector2(14, 4);
-                dl.AddRectFilled(bisPillPos, bisPillEnd, ImGui.GetColorU32(bisColor with { W = 0.15f }), 10f);
-                dl.AddRect(bisPillPos, bisPillEnd, ImGui.GetColorU32(bisColor with { W = 0.4f }), 10f);
-                dl.AddText(bisPillPos + new Vector2(7, 2), ImGui.GetColorU32(bisColor), bisText);
-            }
+            var bisSize = ImGui.CalcTextSize(bisText);
+            var bisPillPos = new Vector2(currentPillEnd.X + 8, startPos.Y + textPadY - 2);
+            var bisPillEnd = bisPillPos + bisSize + new Vector2(14, 4);
+            dl.AddRectFilled(bisPillPos, bisPillEnd, ImGui.GetColorU32(bisColor with { W = 0.15f }), 10f);
+            dl.AddRect(bisPillPos, bisPillEnd, ImGui.GetColorU32(bisColor with { W = 0.4f }), 10f);
+            dl.AddText(bisPillPos + new Vector2(7, 2), ImGui.GetColorU32(bisColor), bisText);
+            currentPillEnd = bisPillEnd;
         }
 
         // Expand/Collapse Arrow
@@ -202,7 +207,7 @@ public class LoadoutCard
 
             if (hasBiS)
             {
-                bisView.DrawComparatorSplit(comparisons!);
+                bisView.DrawComparatorSplit(comparisons!, bisData);
                 ImGui.Spacing();
                 if (costs != null)
                     bisView.DrawCompactCostSummary(costs);
