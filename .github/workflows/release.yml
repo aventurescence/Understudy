@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g. 1.2.3). Leave blank to auto-increment patch.'
+        description: 'Version to release (e.g. 1.2.0.0). Leave blank to auto-increment revision.'
         required: false
         type: string
 
@@ -35,32 +35,25 @@ jobs:
           # Use the manually specified version
           $ver = $inputVersion.TrimStart('v')
         } elseif ($latestTag) {
-          # Auto-increment patch from latest tag
+          # Auto-increment revision (4th component) from latest tag
           $ver = $latestTag.TrimStart('v')
           $parts = $ver.Split('.')
-          # Increment patch (3rd component, or 2nd if only major.minor)
-          if ($parts.Length -ge 3) {
-            $parts[2] = [string]([int]$parts[2] + 1)
-          } elseif ($parts.Length -eq 2) {
-            $parts += '1'
-          } else {
-            $parts += @('0', '1')
-          }
-          $ver = $parts[0..2] -join '.'
+          while ($parts.Length -lt 4) { $parts += '0' }
+          $parts[3] = [string]([int]$parts[3] + 1)
+          $ver = $parts[0..3] -join '.'
         } else {
-          # No tags exist yet, start at 1.0.0
-          $ver = '1.0.0'
+          # No tags exist yet, start at 1.0.0.0
+          $ver = '1.0.0.0'
         }
 
         # Ensure 4-part version for Dalamud (X.Y.Z.W)
         $parts = $ver.Split('.')
         while ($parts.Length -lt 4) { $parts += '0' }
         $fullVersion = $parts[0..3] -join '.'
-        $tagVersion = $parts[0..2] -join '.'
 
         echo "version=$fullVersion" >> $env:GITHUB_OUTPUT
-        echo "tag=v$tagVersion" >> $env:GITHUB_OUTPUT
-        echo "Resolved version: $fullVersion (tag: v$tagVersion)"
+        echo "tag=v$fullVersion" >> $env:GITHUB_OUTPUT
+        echo "Resolved version: $fullVersion (tag: v$fullVersion)"
 
     - name: Check if tag already exists
       id: check_tag
