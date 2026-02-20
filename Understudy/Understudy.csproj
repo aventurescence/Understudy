@@ -2,7 +2,7 @@
 <Project Sdk="Dalamud.NET.Sdk/14.0.1">
   <PropertyGroup>
     <Authors>Churin</Authors>
-    <Version>1.0.0.0</Version>
+    <Version Condition="'$(Version)' == ''">0.0.0.0</Version>
     <Description>Tracks raid progression, tomestones, and gear.</Description>
     <Platforms>x64</Platforms>
 		<TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
@@ -35,5 +35,14 @@
     <Content Include="aSSETS\Understudy1.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="aSSETS\understudy.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="UpdateJsonVersion" BeforeTargets="Build" Condition="'$(Version)' != '0.0.0.0'">
+    <PropertyGroup>
+      <JsonPath>$(ProjectDir)Understudy.json</JsonPath>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)update-version.ps1" Overwrite="true"
+      Lines="$content = Get-Content '$(JsonPath)' -Raw; $content = $content -replace 'AssemblyVersion.*', ('AssemblyVersion&quot;: &quot;$(Version)&quot;,'); Set-Content '$(JsonPath)' $content -NoNewline" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File $(IntermediateOutputPath)update-version.ps1" />
+  </Target>
 
 </Project>

@@ -17,6 +17,9 @@ public class Configuration : IPluginConfiguration
 
     public Dictionary<ulong, CharacterData> Characters { get; set; } = new();
 
+    public uint DashboardFrameImageId { get; set; } = 0;
+    public float DashboardFrameOpacity { get; set; } = 0.6f;
+
     public void Save()
     {
         Plugin.PluginInterface.SavePluginConfig(this);

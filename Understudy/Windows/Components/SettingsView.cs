@@ -29,6 +29,10 @@ public class SettingsView
             ImGui.Spacing();
             ImGui.Separator();
             ImGui.Spacing();
+            DrawDashboardSettings();
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
             DrawDebugSettings();
         }
         ImGui.EndChild();
@@ -37,6 +41,7 @@ public class SettingsView
     private void DrawGeneralSettings()
     {
         ImGui.TextColored(Theme.AccentPrimary, "General");
+        ImGui.Indent(12f);
         
         // Example settings - likely just placeholders or simple toggles for now
         // Assuming Configuration has some properties, or we add them.
@@ -57,11 +62,77 @@ public class SettingsView
             plugin.Configuration.CompactMode = compactMode;
             plugin.Configuration.Save();
         }
+        ImGui.Unindent(12f);
+    }
+
+
+
+    private void DrawDashboardSettings()
+    {
+        ImGui.TextColored(Theme.AccentPrimary, "Dashboard Appearance");
+        ImGui.Indent(12f);
+
+        // Frame Overlay Selector
+        var charaCardDecorationSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.CharaCardDecoration>();
+        
+        uint currentFrame = plugin.Configuration.DashboardFrameImageId;
+        string previewLabel = "None";
+        if (currentFrame == 0) previewLabel = "None";
+        else if (charaCardDecorationSheet != null && IsValidFrameId(currentFrame))
+        {
+            foreach (var dec in charaCardDecorationSheet)
+            {
+                if ((uint)dec.Image == currentFrame)
+                {
+                    previewLabel = dec.Name.ToString();
+                    break;
+                }
+            }
+            if (previewLabel == "None") previewLabel = $"# {currentFrame}";
+        }
+
+        if (ImGui.BeginCombo("Card Frame Overlay", previewLabel))
+        {
+            if (ImGui.Selectable("None", currentFrame == 0))
+            {
+                plugin.Configuration.DashboardFrameImageId = 0;
+                plugin.Configuration.Save();
+            }
+
+            if (charaCardDecorationSheet != null)
+            {
+                foreach (var decoration in charaCardDecorationSheet)
+                {
+                    var name = decoration.Name.ToString();
+                    if (string.IsNullOrEmpty(name)) continue;
+
+                    uint imageId = (uint)decoration.Image;
+
+                    if (!IsValidFrameId(imageId)) continue;
+
+                    if (ImGui.Selectable(name, currentFrame == imageId))
+                    {
+                        plugin.Configuration.DashboardFrameImageId = imageId;
+                        plugin.Configuration.Save();
+                    }
+                }
+            }
+            ImGui.EndCombo();
+        }
+
+        float opacity = plugin.Configuration.DashboardFrameOpacity;
+        if (ImGui.SliderFloat("Frame Overlay Opacity", ref opacity, 0f, 1f))
+        {
+            plugin.Configuration.DashboardFrameOpacity = opacity;
+            plugin.Configuration.Save();
+        }
+        ImGui.Unindent(12f);
     }
 
     private void DrawDebugSettings()
     {
         ImGui.TextColored(Theme.AccentPrimary, "Debug");
+        ImGui.Indent(12f);
         
         bool verbose = plugin.Configuration.VerboseLogging;
         if (ImGui.Checkbox("Verbose Logging", ref verbose))
@@ -69,5 +140,12 @@ public class SettingsView
             plugin.Configuration.VerboseLogging = verbose;
             plugin.Configuration.Save();
         }
+        ImGui.Unindent(12f);
     }
+
+    private static bool IsValidFrameId(uint id) =>
+        (id >= 198001 && id <= 198022) ||
+        (id >= 198654 && id <= 198673) ||
+        (id >= 198701 && id <= 198726) ||
+        id == 198901 || id == 198902;
 }

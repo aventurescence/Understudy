@@ -28,7 +28,7 @@ public class MainWindow : Window, IDisposable
     {
         this.SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(900, 650), // Increased min size for premium feel
+            MinimumSize = new Vector2(1250, 650),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
         
@@ -106,11 +106,10 @@ public class MainWindow : Window, IDisposable
         ImGui.EndChild();
         ImGui.PopStyleColor();
         
-        ImGui.SameLine();
+        ImGui.SameLine(0, 4f);
         
         // ── Content Area ─────────────────────────────────────────────
         ImGui.BeginGroup();
-        ImGui.Indent(Theme.SectionSpace);
         
         // Use a child for content to enable independent scrolling if needed
         ImGui.BeginChild("Content", new Vector2(0, 0), false);
@@ -129,7 +128,6 @@ public class MainWindow : Window, IDisposable
         }
         
         ImGui.EndChild();
-        ImGui.Unindent(Theme.SectionSpace);
         ImGui.EndGroup();
         
         // Draw popup (overlay)
