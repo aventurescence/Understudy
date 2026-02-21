@@ -43,10 +43,6 @@ public class SettingsView
         ImGui.TextColored(Theme.AccentPrimary, "General");
         ImGui.Indent(12f);
         
-        // Example settings - likely just placeholders or simple toggles for now
-        // Assuming Configuration has some properties, or we add them.
-        // For now, we'll just show some UI elements.
-        
         bool showJobCategory = plugin.Configuration.ShowJobCategoryInDashboard;
         if (ImGui.Checkbox("Show Job Category in Dashboard", ref showJobCategory))
         {
@@ -72,7 +68,6 @@ public class SettingsView
         ImGui.TextColored(Theme.AccentPrimary, "Dashboard Appearance");
         ImGui.Indent(12f);
 
-        // Frame Overlay Selector
         var charaCardDecorationSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.CharaCardDecoration>();
         
         uint currentFrame = plugin.Configuration.DashboardFrameImageId;

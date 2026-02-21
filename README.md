@@ -1,4 +1,4 @@
-# ![Understudy](Understudy/aSSETS/Understudy2.png) Understudy
+# ![Understudy](Understudy/Assets/Understudy2.png) Understudy
 
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/aventurescence/understudy/total)
 

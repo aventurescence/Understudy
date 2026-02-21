@@ -18,23 +18,25 @@ public class MainWindow : Window, IDisposable
     private readonly Dashboard dashboard;
     private readonly CharacterDetail characterDetail;
     private readonly SettingsView settingsView;
-    
-    // Navigation State
     private enum ViewType { Dashboard, Character, Settings }
-    private ViewType currentView = ViewType.Dashboard;
+    private ViewType _currentView = ViewType.Dashboard;
+    private ViewType currentView
+    {
+        get => _currentView;
+        set
+        {
+            if (_currentView != value)
+            {
+                _currentView = value;
+                RefreshSizeConstraints();
+            }
+        }
+    }
     private ulong? selectedCharacterId;
 
     public MainWindow(Plugin plugin) : base("Understudy")
     {
-        this.SizeConstraints = new WindowSizeConstraints
-        {
-            MinimumSize = new Vector2(1250, 650),
-            MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
-        };
-        
         this.plugin = plugin;
-        
-        // Initialize components
         loadoutPopup = new LoadoutPopup(plugin);
         settingsView = new SettingsView(plugin);
         
@@ -49,7 +51,7 @@ public class MainWindow : Window, IDisposable
             loadoutPopup
         );
         
-        dashboard = new Dashboard(plugin, 
+        dashboard = new Dashboard(plugin,
             id => // On Select Character
             {
                 selectedCharacterId = id;
@@ -58,6 +60,12 @@ public class MainWindow : Window, IDisposable
                 characterDetail.SetCharacter(id);
             }
         );
+        dashboard.OnSelectedCharacterDeleted += () =>
+        {
+            selectedCharacterId = null;
+            currentView = ViewType.Dashboard;
+            sidebar?.UpdateSelection(null);
+        };
         
         sidebar = new Sidebar(plugin, 
             id => // On Selection Changed (Character)
@@ -81,6 +89,30 @@ public class MainWindow : Window, IDisposable
                 sidebar?.UpdateSelection(null); // Clear character selection visual
             }
         );
+
+        RefreshSizeConstraints();
+    }
+
+    private void RefreshSizeConstraints()
+    {
+        var scale = ImGui.GetIO().FontGlobalScale;
+        if (currentView == ViewType.Dashboard || currentView == ViewType.Settings)
+        {
+            this.SizeConstraints = new WindowSizeConstraints
+            {
+                MinimumSize = new Vector2(600f * scale, 400f * scale),
+                MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
+            };
+        }
+        else
+        {
+            // Keep the larger constraint for Character Detail as requested
+            this.SizeConstraints = new WindowSizeConstraints
+            {
+                MinimumSize = new Vector2(1250, 650),
+                MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
+            };
+        }
     }
 
     /// <summary>
@@ -90,6 +122,7 @@ public class MainWindow : Window, IDisposable
     public override void OnOpen()
     {
         plugin.UpdateCharacterData();
+        RefreshSizeConstraints(); // Ensure constraints match scale on open
     }
     
     public override void Draw()
@@ -97,7 +130,6 @@ public class MainWindow : Window, IDisposable
         // ── Sidebar ──────────────────────────────────────────────────
         var sidebarWidth = 240f * ImGui.GetIO().FontGlobalScale; // Increased width
         
-        // Use a Child window for sidebar with a darker background
         ImGui.PushStyleColor(ImGuiCol.ChildBg, Theme.BgDark);
         ImGui.BeginChild("Sidebar", new Vector2(sidebarWidth, 0), true);
         
@@ -111,7 +143,6 @@ public class MainWindow : Window, IDisposable
         // ── Content Area ─────────────────────────────────────────────
         ImGui.BeginGroup();
         
-        // Use a child for content to enable independent scrolling if needed
         ImGui.BeginChild("Content", new Vector2(0, 0), false);
 
         switch (currentView)
@@ -130,15 +161,11 @@ public class MainWindow : Window, IDisposable
         ImGui.EndChild();
         ImGui.EndGroup();
         
-        // Draw popup (overlay)
         loadoutPopup.Draw();
     }
 
     public void Dispose()
     {
         loadoutPopup.Dispose();
-        // characterDetail.Dispose(); // If it has disposable resources
-        // dashboard.Dispose();
-        // sidebar.Dispose(); // If it loads textures
     }
 }

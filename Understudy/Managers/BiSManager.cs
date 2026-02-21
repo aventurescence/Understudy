@@ -14,11 +14,12 @@ public class BiSManager
 {
     private class EtroFoodItem { public uint id { get; set; } public uint item { get; set; } }
     private Dictionary<uint, uint>? cachedEtroFoodMap = null;
+    private Dictionary<uint, int>? cachedTomeCosts = null;
+    private Dictionary<uint, int>? cachedBookCosts = null;
     private readonly Plugin plugin;
     private readonly IDataManager dataManager;
     private readonly IPluginLog log;
     
-    // Regex patterns for URLs
     private static readonly Regex EtroPattern = new(@"https?://etro\.gg/gearset/([^/]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex XivGearPattern = new(@"(?:https?://xivgear\.app/\?page=sl\||https?://api\.xivgear\.app/shortlink/)([a-zA-Z0-9-]+)(?:&(?:selectedIndex|onlySetIndex)=(\d+))?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
@@ -32,13 +33,13 @@ public class BiSManager
         this.log = log;
     }
 
-    public void ImportFromUrl(string url, uint jobId)
+    public void ImportFromUrl(string url, uint jobId, ulong? characterId = null)
     {
-        // Fire and forget task
-        Task.Run(async () => await ImportAsync(url, jobId));
+        var targetId = characterId ?? Plugin.PlayerState.ContentId;
+        Task.Run(async () => await ImportAsync(url, jobId, targetId));
     }
 
-    private async Task ImportAsync(string url, uint jobId)
+    private async Task ImportAsync(string url, uint jobId, ulong targetCharacterId)
     {
         IsLoading = true;
         LastError = string.Empty;
@@ -57,16 +58,16 @@ public class BiSManager
             var etroMatch = EtroPattern.Match(url);
             if (etroMatch.Success)
             {
-                await ImportEtro(etroMatch.Groups[1].Value, jobId, url);
-                plugin.CheckAndTrackGear(jobId);
+                await ImportEtro(etroMatch.Groups[1].Value, jobId, url, targetCharacterId);
+                plugin.CheckAndTrackGear(jobId, targetCharacterId);
                 return;
             }
 
             var xivMatch = XivGearPattern.Match(url);
             if (xivMatch.Success)
             {
-                await ImportXivGear(xivMatch.Groups[1].Value, xivMatch.Groups[2].Value, jobId, url);
-                plugin.CheckAndTrackGear(jobId);
+                await ImportXivGear(xivMatch.Groups[1].Value, xivMatch.Groups[2].Value, jobId, url, targetCharacterId);
+                plugin.CheckAndTrackGear(jobId, targetCharacterId);
                 return;
             }
             
@@ -104,35 +105,13 @@ public class BiSManager
         public Dictionary<string, Dictionary<string, uint>>? materia { get; set; }
     }
 
-    private async Task ImportEtro(string id, uint jobId, string originalUrl)
+    private async Task ImportEtro(string id, uint jobId, string originalUrl, ulong targetCharacterId)
     {
         var response = await plugin.HttpClient.GetStringAsync($"https://etro.gg/api/gearsets/{id}");
         var data = System.Text.Json.JsonSerializer.Deserialize<EtroResponse>(response);
         if (data == null) throw new Exception("Empty response from Etro");
 
-        uint resolvedFoodId = 0;
-        if (data.food.HasValue && data.food.Value > 0)
-        {
-            try
-            {
-                if (cachedEtroFoodMap == null)
-                {
-                    var foodJson = await plugin.HttpClient.GetStringAsync("https://etro.gg/api/food/");
-                    var foodList = System.Text.Json.JsonSerializer.Deserialize<List<EtroFoodItem>>(foodJson);
-                    if (foodList != null)
-                        cachedEtroFoodMap = foodList.ToDictionary(f => f.id, f => f.item);
-                }
-                
-                if (cachedEtroFoodMap != null && cachedEtroFoodMap.TryGetValue(data.food.Value, out var mappedItem))
-                {
-                    resolvedFoodId = mappedItem;
-                }
-            }
-            catch (Exception ex)
-            {
-                Plugin.Log.Warning(ex, $"[Understudy] Failed to fetch Etro food mapping for id {data.food}");
-            }
-        }
+        uint resolvedFoodId = await ResolveEtroFoodIdAsync(data.food);
 
         var bis = new BiSData
         {
@@ -149,7 +128,6 @@ public class BiSManager
             if (itemId == null || itemId == 0) return;
             var item = CreateBiSItem((uint)itemId, slotId);
             
-            // Materia
             string key = itemId.ToString()!;
             string keyOverride = slotKeyOverride ?? key;
             
@@ -190,7 +168,7 @@ public class BiSManager
         AddSlot(11, data.fingerR, data.fingerR + "R");
         AddSlot(12, data.fingerL, data.fingerL + "L");
 
-        SaveBiS(jobId, bis);
+        SaveBiS(jobId, bis, targetCharacterId);
     }
 
     // ── XIVGear.app Import ─────────────────────────────────────────
@@ -200,14 +178,12 @@ public class BiSManager
     private class XGItem { public uint id { get; set; } public List<XGMateria>? materia { get; set; } }
     private class XGMateria { public int id { get; set; } }
 
-    private async Task ImportXivGear(string shortcode, string setIndexStr, uint jobId, string originalUrl)
+    private async Task ImportXivGear(string shortcode, string setIndexStr, uint jobId, string originalUrl, ulong targetCharacterId)
     {
         var json = await plugin.HttpClient.GetStringAsync($"https://api.xivgear.app/shortlink/{shortcode}");
         
         XGSet? targetSet = null;
 
-        // XIVGear can return either a collection of sets or a single set.
-        // Try collection first — if it has a valid sets array, pick the requested index.
         var coll = System.Text.Json.JsonSerializer.Deserialize<XGSetCollection>(json);
         if (coll?.sets != null && coll.sets.Count > 0)
         {
@@ -218,7 +194,6 @@ public class BiSManager
                 throw new Exception($"Set index {idx} is out of range (collection has {coll.sets.Count} sets)");
         }
 
-        // If no collection match, parse as a single set
         if (targetSet == null)
         {
             targetSet = System.Text.Json.JsonSerializer.Deserialize<XGSet>(json);
@@ -241,7 +216,6 @@ public class BiSManager
             {
                 var item = CreateBiSItem(xItem.id, slotId);
                 
-                // Materia
                 if (xItem.materia != null)
                 {
                     for (int i = 0; i < Math.Min(5, xItem.materia.Count); i++)
@@ -268,7 +242,7 @@ public class BiSManager
         AddSlot(11, "RingRight");
         AddSlot(12, "RingLeft");
 
-        SaveBiS(jobId, bis);
+        SaveBiS(jobId, bis, targetCharacterId);
     }
 
     // ── Helper Logic ───────────────────────────────────────────────
@@ -322,52 +296,21 @@ public class BiSManager
         switch (item.Source)
         {
             case GearSource.Savage:
-                // Needs Book and potentially Twine/Glaze/Solvent later if augmented
                 string floor = GetSavageFloor(item.Slot);
                 if (costs.BooksNeeded.ContainsKey(floor))
                     costs.BooksNeeded[floor]++;
                 else
                     costs.BooksNeeded[floor] = 1;
-
                 return $"{floor} Drop / Book";
 
             case GearSource.AugmentedTomestone:
-                // Needs Base Tome + Upgrade Material
-                // Base Cost
-                int tomes = item.Slot switch
-                {
-                    0 => 500, // Weapon (augmented)
-                    3 or 6 => 825, // Body/Legs
-                    2 or 4 or 7 => 495, // Head/Hands/Feet
-                    _ => 375 // Accessories
-                };
-                costs.TomestonesNeeded += tomes;
-
-                // Weapon also needs Universal Tomestone 3.0
-                if (item.Slot == 0) costs.UniversalTomestonesNeeded += 1;
-
-                // Material
-                if (item.Slot == 0) // Weapon
-                    costs.SolventNeeded++;
-                else if (new[] { 2, 3, 4, 6, 7 }.Contains(item.Slot)) // Left side
-                    costs.TwineNeeded++;
-                else // Right side
-                    costs.GlazeNeeded++;
-
+                AccumulateTomeCosts(item.ItemId, item.Slot, ref costs);
+                AccumulateUpgradeMaterialCosts(item.Slot, ref costs);
                 return "Tomes + Upgrade";
 
             case GearSource.Tomestone:
-                // Unaugmented
-                int baseTomes = item.Slot switch
-                {
-                    0 => 500,
-                    3 or 6 => 825,
-                    2 or 4 or 7 => 495,
-                    _ => 375
-                };
-                costs.TomestonesNeeded += baseTomes;
-                if (item.Slot == 0) costs.UniversalTomestonesNeeded += 1;
-                return $"{baseTomes} Tomes";
+                int tomes = AccumulateTomeCosts(item.ItemId, item.Slot, ref costs);
+                return $"{tomes} Tomes";
         }
 
         return "Unknown";
@@ -380,14 +323,38 @@ public class BiSManager
         return 0;
     }
 
-    private void SaveBiS(uint jobId, BiSData bis)
+    private async Task<uint> ResolveEtroFoodIdAsync(uint? etroFoodId)
     {
-        var contentId = Plugin.PlayerState.ContentId;
-        if (contentId == 0) return;
+        if (!etroFoodId.HasValue || etroFoodId.Value == 0) return 0;
+        try
+        {
+            await EnsureEtroFoodMapLoaded();
+            if (cachedEtroFoodMap != null && cachedEtroFoodMap.TryGetValue(etroFoodId.Value, out var mappedItem))
+                return mappedItem;
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Warning(ex, $"[Understudy] Failed to fetch Etro food mapping for id {etroFoodId}");
+        }
+        return 0;
+    }
+
+    private async Task EnsureEtroFoodMapLoaded()
+    {
+        if (cachedEtroFoodMap != null) return;
+        var foodJson = await plugin.HttpClient.GetStringAsync("https://etro.gg/api/food/");
+        var foodList = System.Text.Json.JsonSerializer.Deserialize<List<EtroFoodItem>>(foodJson);
+        if (foodList != null)
+            cachedEtroFoodMap = foodList.ToDictionary(f => f.id, f => f.item);
+    }
+
+    private void SaveBiS(uint jobId, BiSData bis, ulong characterId)
+    {
+        if (characterId == 0) return;
 
         if (plugin.IsJobExcluded(jobId)) return;
-        
-        if (plugin.Configuration.Characters.TryGetValue(contentId, out var charData))
+
+        if (plugin.Configuration.Characters.TryGetValue(characterId, out var charData))
         {
             charData.BisSets[jobId] = bis;
             plugin.Configuration.Save();
@@ -396,12 +363,12 @@ public class BiSManager
 
     // ── Comparison Logic ───────────────────────────────────────────
 
-    public (List<BiSSlotComparison> Comparisons, AcquisitionCosts Costs) Compare(uint jobId)
+    public (List<BiSSlotComparison> Comparisons, AcquisitionCosts Costs) Compare(uint jobId, ulong? characterId = null)
     {
         var costs = new AcquisitionCosts();
         var comparisons = new List<BiSSlotComparison>();
-        
-        var contentId = Plugin.PlayerState.ContentId;
+
+        var contentId = characterId ?? Plugin.PlayerState.ContentId;
         if (contentId == 0 || !plugin.Configuration.Characters.TryGetValue(contentId, out var charData))
             return (comparisons, costs);
 
@@ -410,31 +377,59 @@ public class BiSManager
 
         var currentGear = charData.GearSets.TryGetValue(jobId, out var set) ? set : new GearSetData();
 
-        // Check each slot in the BiS set
+        var equippedRings = currentGear.Items.Where(x => x.Slot == 11 || x.Slot == 12).ToList();
+
+        // Greedily match BiS rings against equipped ring pool
+        var ringMatches = new Dictionary<int, GearItem?>();
+        var unmatchedBisSlots = new List<int>();
+        foreach (var kvp in bisData.Items.Where(k => k.Key == 11 || k.Key == 12).OrderBy(k => k.Key))
+        {
+            var match = equippedRings.FirstOrDefault(r => r.ItemId == kvp.Value.ItemId);
+            if (match != null)
+            {
+                ringMatches[kvp.Key] = match;
+                equippedRings.Remove(match);
+            }
+            else
+            {
+                unmatchedBisSlots.Add(kvp.Key);
+            }
+        }
+        foreach (var bisSlot in unmatchedBisSlots)
+        {
+            if (equippedRings.Count > 0)
+            {
+                ringMatches[bisSlot] = equippedRings[0];
+                equippedRings.RemoveAt(0);
+            }
+            else
+            {
+                ringMatches[bisSlot] = null;
+            }
+        }
+
         foreach (var kvp in bisData.Items.OrderBy(k => k.Key))
         {
             var slot = kvp.Key;
             var bisItem = kvp.Value;
-            var currentItem = currentGear.Items.FirstOrDefault(x => x.Slot == slot);
-            
-            var isOwned = currentItem != null && currentItem.ItemId == bisItem.ItemId;
+            GearItem? currentItem;
+            bool isOwned;
 
-            if (!isOwned && (slot == 11 || slot == 12))
+            if (slot == 11 || slot == 12)
             {
-                var oppositeSlot = slot == 11 ? 12 : 11;
-                var oppositeItem = currentGear.Items.FirstOrDefault(x => x.Slot == oppositeSlot);
-                if (oppositeItem != null && oppositeItem.ItemId == bisItem.ItemId)
-                {
-                    isOwned = true;
-                    currentItem = oppositeItem;
-                }
+                ringMatches.TryGetValue(slot, out currentItem);
+                isOwned = currentItem != null && currentItem.ItemId == bisItem.ItemId;
             }
-            
+            else
+            {
+                currentItem = currentGear.Items.FirstOrDefault(x => x.Slot == slot);
+                isOwned = currentItem != null && currentItem.ItemId == bisItem.ItemId;
+            }
+
             var label = "";
 
             if (!isOwned)
             {
-                // Calculate costs
                 label = GetCostLabel(bisItem, ref costs);
             }
 
@@ -453,76 +448,118 @@ public class BiSManager
 
     private string GetCostLabel(BiSItem item, ref AcquisitionCosts costs)
     {
-        // If we already have the base item but need augment?
-        // Detailed logic is complex because we don't know if the user has the base item unless we scan inventory.
-        // For now, assume "From Scratch" cost.
-
         switch (item.Source)
         {
             case GearSource.Savage:
-                // M1-M4 drop
                 if (!string.IsNullOrEmpty(item.FloorSource))
                 {
-                    // Book cost?
-                    int bookCost = item.Slot switch
-                    {
-                        0 => 8, // Weapon
-                        3 or 6 => 6, // Body/Legs
-                        2 or 4 or 7 => 4, // Head/Hands/Feet
-                        _ => 3 // Accessories
-                    };
-                    
-                    // Don't double count books if we are buying distinct items? 
-                    // Actually we aggregate total books needed.
+                    int bookCost = GetBookCost(item.ItemId);
                     costs.BooksNeeded[item.FloorSource] += bookCost;
                     return $"{item.FloorSource} Savage";
                 }
                 break;
 
             case GearSource.AugmentedTomestone:
-                // Needs Base Tome + Upgrade Material
-                // Base Cost
-                int tomes = item.Slot switch
-                {
-                    0 => 500, // Weapon (augmented)
-                    3 or 6 => 825, // Body/Legs
-                    2 or 4 or 7 => 495, // Head/Hands/Feet
-                    _ => 375 // Accessories
-                };
-                costs.TomestonesNeeded += tomes;
-
-                // Weapon also needs Universal Tomestone 3.0
-                if (item.Slot == 0) costs.UniversalTomestonesNeeded += 1;
-
-                // Material
-                if (item.Slot == 0) // Weapon
-                    costs.SolventNeeded++;
-                else if (new[] { 2, 3, 4, 6, 7 }.Contains(item.Slot)) // Left side
-                    costs.TwineNeeded++;
-                else // Right side
-                    costs.GlazeNeeded++;
-
+                AccumulateTomeCosts(item.ItemId, item.Slot, ref costs);
+                AccumulateUpgradeMaterialCosts(item.Slot, ref costs);
                 return "Tomes + Upgrade";
 
             case GearSource.Tomestone:
-                // Unaugmented
-                int baseTomes = item.Slot switch
-                {
-                    0 => 500,
-                    3 or 6 => 825,
-                    2 or 4 or 7 => 495,
-                    _ => 375
-                };
-                costs.TomestonesNeeded += baseTomes;
-                if (item.Slot == 0) costs.UniversalTomestonesNeeded += 1;
-                return $"{baseTomes} Tomes";
+                int tomes = AccumulateTomeCosts(item.ItemId, item.Slot, ref costs);
+                return $"{tomes} Tomes";
         }
 
         return "Unknown";
     }
-    public void SetBiSItem(uint jobId, int slotId, uint itemId, string name, uint itemLevel, List<uint> materia)
+
+    private void EnsureShopCostsLoaded()
     {
-        var contentId = Plugin.PlayerState.ContentId;
+        if (cachedTomeCosts != null) return;
+
+        cachedTomeCosts = new Dictionary<uint, int>();
+        cachedBookCosts = new Dictionary<uint, int>();
+
+        var shopSheet = dataManager.GetExcelSheet<SpecialShop>();
+        if (shopSheet == null) return;
+
+        foreach (var shop in shopSheet)
+        {
+            foreach (var entry in shop.Item)
+            {
+                foreach (var recv in entry.ReceiveItems)
+                {
+                    if (!recv.Item.IsValid || recv.Item.RowId == 0) continue;
+                    var receivedItemId = recv.Item.RowId;
+
+                    foreach (var cost in entry.ItemCosts)
+                    {
+                        if (cost.CurrencyCost == 0) continue;
+                        if (!cost.ItemCost.IsValid || cost.ItemCost.RowId == 0) continue;
+
+                        var costItemName = cost.ItemCost.Value.Name.ToString();
+                        var amount = (int)cost.CurrencyCost;
+
+                        if (costItemName.Contains("Tomestone"))
+                            cachedTomeCosts.TryAdd(receivedItemId, amount);
+                        else if (costItemName.Contains(TierConfig.BookKeyword))
+                            cachedBookCosts.TryAdd(receivedItemId, amount);
+                    }
+                }
+            }
+        }
+
+        log.Debug($"[Understudy] Loaded {cachedTomeCosts.Count} tome costs and {cachedBookCosts.Count} book costs from SpecialShop");
+    }
+
+    private int GetTomeCost(uint itemId, int slot = -1)
+    {
+        EnsureShopCostsLoaded();
+        if (cachedTomeCosts!.TryGetValue(itemId, out var cost))
+            return cost;
+
+        // Slot-based fallback for augmented items not in tome shop
+        if (slot >= 0)
+        {
+            return slot switch
+            {
+                0 => 500,       // Weapon
+                3 or 6 => 825,  // Body, Legs
+                2 or 4 or 7 => 495, // Head, Hands, Feet
+                _ => 375        // Accessories
+            };
+        }
+
+        return 0;
+    }
+
+    private int GetBookCost(uint itemId)
+    {
+        EnsureShopCostsLoaded();
+        return cachedBookCosts!.TryGetValue(itemId, out var cost) ? cost : 0;
+    }
+
+    private static readonly HashSet<int> LeftSideSlots = new() { 2, 3, 4, 6, 7 };
+
+    private int AccumulateTomeCosts(uint itemId, int slot, ref AcquisitionCosts costs)
+    {
+        int tomes = GetTomeCost(itemId, slot);
+        costs.TomestonesNeeded += tomes;
+        if (slot == 0) costs.UniversalTomestonesNeeded += 1;
+        return tomes;
+    }
+
+    private static void AccumulateUpgradeMaterialCosts(int slot, ref AcquisitionCosts costs)
+    {
+        if (slot == 0)
+            costs.SolventNeeded++;
+        else if (LeftSideSlots.Contains(slot))
+            costs.TwineNeeded++;
+        else
+            costs.GlazeNeeded++;
+    }
+    public void SetBiSItem(uint jobId, int slotId, uint itemId, string name, uint itemLevel, List<uint> materia, ulong? characterId = null)
+    {
+        var contentId = characterId ?? Plugin.PlayerState.ContentId;
         if (contentId == 0) return;
 
         if (plugin.IsJobExcluded(jobId)) return;
@@ -565,9 +602,9 @@ public class BiSManager
         item.FloorSource = item.Source == GearSource.Savage ? GetSavageFloor(item.Slot) : string.Empty;
     }
 
-    public void SetBiSFood(uint jobId, uint foodItemId)
+    public void SetBiSFood(uint jobId, uint foodItemId, ulong? characterId = null)
     {
-        var contentId = Plugin.PlayerState.ContentId;
+        var contentId = characterId ?? Plugin.PlayerState.ContentId;
         if (contentId == 0) return;
 
         if (!plugin.Configuration.Characters.TryGetValue(contentId, out var charData))
@@ -633,18 +670,7 @@ public class BiSManager
                 AddDetailSlot(11, data.fingerR);
                 AddDetailSlot(12, data.fingerL);
 
-                if (data.food.HasValue && data.food.Value > 0)
-                {
-                    if (cachedEtroFoodMap == null)
-                    {
-                        var foodJson = await plugin.HttpClient.GetStringAsync("https://etro.gg/api/food/");
-                        var foodList = System.Text.Json.JsonSerializer.Deserialize<List<EtroFoodItem>>(foodJson);
-                        if (foodList != null)
-                            cachedEtroFoodMap = foodList.ToDictionary(f => f.id, f => f.item);
-                    }
-                    if (cachedEtroFoodMap != null && cachedEtroFoodMap.TryGetValue(data.food.Value, out var mappedItem))
-                        detail.FoodId = mappedItem;
-                }
+                detail.FoodId = await ResolveEtroFoodIdAsync(data.food);
 
                 cachedGearsetDetails[id] = detail;
             }
@@ -678,7 +704,6 @@ public class BiSManager
 
         if (cachedEtroSets == null) return new List<EtroBiSSet>();
 
-        // Extract GCD from totalParams for each set
         foreach (var set in cachedEtroSets)
         {
             if (set.totalParams != null)

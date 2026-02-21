@@ -25,7 +25,6 @@ public class ConfigWindow : Window, IDisposable
 
     public override void PreDraw()
     {
-        // Push the same colors as the main theme
         ImGui.PushStyleColor(ImGuiCol.WindowBg, Theme.BgDark);
         ImGui.PushStyleColor(ImGuiCol.Text, Theme.TextPrimary);
         ImGui.PushStyleColor(ImGuiCol.Border, Theme.BorderSubtle);
@@ -36,7 +35,6 @@ public class ConfigWindow : Window, IDisposable
         ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 6.0f);
         ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 4.0f);
 
-        // Movable flag
         if (configuration.IsConfigWindowMovable)
             Flags &= ~ImGuiWindowFlags.NoMove;
         else

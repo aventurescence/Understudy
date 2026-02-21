@@ -21,7 +21,6 @@ public unsafe class GearManager
 
     public GearSetData UpdateGear()
     {
-        // IObjectTable[0] is always the local player
         var player = objectTable[0] as IPlayerCharacter;
         if (player == null) return new GearSetData();
 
@@ -39,7 +38,6 @@ public unsafe class GearManager
         var container = manager->GetInventoryContainer(InventoryType.EquippedItems);
         if (container == null) return gearData;
 
-        // Equip slots: 0=MainHand, 1=OffHand, 2=Head, 3=Body, 4=Hands, 5=Waist(Deleted), 6=Legs, 7=Feet, 8=Ears, 9=Neck, 10=Wrists, 11=RRing, 12=LRing
         var itemSheet = dataManager.GetExcelSheet<Item>();
         if (itemSheet == null) return gearData;
 
@@ -52,8 +50,7 @@ public unsafe class GearManager
 
             if (itemSheet.TryGetRow(itemId, out var itemRow))
             {
-                 // Filter out Soul Crystal (Slot 13)
-                 if (i == 13) continue;
+                 if (i == 13) continue; // Soul Crystal
 
                  var materiaList = new List<uint>();
                  var materiaSheet = dataManager.GetExcelSheet<Lumina.Excel.Sheets.Materia>();
@@ -63,9 +60,7 @@ public unsafe class GearManager
                      var materiaId = itemSlot->GetMateriaId((byte)m);
                      if (materiaId == 0) continue;
                      
-                    // Revert to pointer arithmetic as FFXIVClientStructs InventoryItem structure 
-                    // does not expose MateriaGrade directly.
-                    // Materia array is 5 ushorts (10 bytes). MateriaGrade array follows immediately.
+                    // MateriaGrade follows the 5-ushort Materia array (offset +10 bytes)
                     byte grade = 0;
                     fixed (ushort* pMateria = itemSlot->Materia)
                     {
@@ -93,15 +88,8 @@ public unsafe class GearManager
             }
         }
 
-        // Calculate Avg IL
         if (gearData.Items.Count > 0)
         {
-            // Simple average logic (ignore soul crystal?)
-            // This is an approximation. Real game uses specific formula.
-            // We can read PlayerState.Instance()->ItemLevel directly?
-            // Yes, ClientState.LocalPlayer.ItemLevel? No, explicit prop might not exist on object?
-            // Actually it might just be easier to read from the UI or recalculate.
-            // Let's recalculate simply for now.
             gearData.AverageItemLevel = (float)gearData.Items.Average(x => x.ItemLevel);
         }
 

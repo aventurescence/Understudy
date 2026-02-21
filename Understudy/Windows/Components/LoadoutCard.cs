@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using Dalamud.Interface;
 using Dalamud.Interface.Textures;
 using Dalamud.Bindings.ImGui;
 
@@ -24,7 +25,7 @@ public class LoadoutCard
         this.materiaDisplay = materiaDisplay;
     }
 
-    public void Draw(uint jobId, GearSetData? gearSet, BiSData? bisData, ref uint? jobToRemove, ref uint? bisToRemove)
+    public void Draw(uint jobId, GearSetData? gearSet, BiSData? bisData, ref uint? jobToRemove, ref uint? bisToRemove, ref uint? dragSourceJob, ref uint? dragTargetJob, ulong? characterId = null)
     {
         var dl = ImGui.GetWindowDrawList();
         var jobAbbr = SharedDrawHelpers.GetJobAbbreviation(jobId);
@@ -44,7 +45,7 @@ public class LoadoutCard
 
         if (bisData != null && bisData.Items.Count > 0)
         {
-            var result = plugin.BiSManager.Compare(jobId);
+            var result = plugin.BiSManager.Compare(jobId, characterId);
             comparisons = result.Comparisons;
             costs = result.Costs;
             ownedCount = comparisons.Count(c => c.IsOwned);
@@ -60,9 +61,39 @@ public class LoadoutCard
 
         ImGui.InvisibleButton($"##LoadoutHeader_{jobId}", headerRect);
         bool isHovered = ImGui.IsItemHovered();
-        bool clicked = ImGui.IsItemClicked();
+        bool clicked = isHovered && ImGui.IsMouseReleased(ImGuiMouseButton.Left);
 
-        // Context menu
+        if (plugin.Configuration.ReorderUnlocked)
+        {
+            if (ImGui.BeginDragDropSource(ImGuiDragDropFlags.SourceNoPreviewTooltip))
+            {
+                dragSourceJob = jobId;
+                ImGui.SetDragDropPayload("LOADOUT_REORDER", ReadOnlySpan<byte>.Empty);
+                ImGui.Text($"Moving {jobAbbr}...");
+                ImGui.EndDragDropSource();
+            }
+
+            if (ImGui.BeginDragDropTarget())
+            {
+                dl.AddRectFilled(startPos, startPos + headerRect,
+                    ImGui.GetColorU32(Theme.AccentPrimary with { W = 0.12f }), 4f);
+                dl.AddRect(startPos, startPos + headerRect,
+                    ImGui.GetColorU32(Theme.AccentPrimary), 4f, ImDrawFlags.None, 2.5f);
+
+                dl.AddLine(startPos - new Vector2(0, 2), startPos + new Vector2(headerRect.X, -2),
+                    ImGui.GetColorU32(Theme.AccentPrimary), 3f);
+                dl.AddCircleFilled(startPos - new Vector2(0, 2), 4f,
+                    ImGui.GetColorU32(Theme.AccentPrimary));
+
+                ImGui.AcceptDragDropPayload("LOADOUT_REORDER");
+                if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
+                {
+                    dragTargetJob = jobId;
+                }
+                ImGui.EndDragDropTarget();
+            }
+        }
+
         if (ImGui.BeginPopupContextItem($"LoadoutCtx##{jobId}"))
         {
             if (gearSet != null)
@@ -77,7 +108,6 @@ public class LoadoutCard
             ImGui.EndPopup();
         }
 
-        // Toggle open/closed
         var storageId = ImGui.GetID($"LoadoutOpen_{jobId}");
         var storage = ImGui.GetStateStorage();
         bool isOpen = storage.GetBool(storageId, true);
@@ -87,7 +117,6 @@ public class LoadoutCard
             storage.SetBool(storageId, isOpen);
         }
 
-        // Header background
         var barColor = isHovered ? Theme.GearHeaderHover : Theme.GearHeaderBar;
         var barEnd = startPos + headerRect;
         var rounding = Theme.GearCardRounding;
@@ -96,14 +125,12 @@ public class LoadoutCard
             : ImDrawFlags.RoundCornersAll;
         dl.AddRectFilled(startPos, barEnd, ImGui.GetColorU32(barColor), rounding, flags);
 
-        // Left accent line
         dl.AddLine(
             startPos + new Vector2(0, 4),
             startPos + new Vector2(0, headerRect.Y - 4),
             ImGui.GetColorU32(Theme.AccentPrimary with { W = 0.7f }),
             2.5f);
 
-        // Job Icon
         float iconSize = 24f;
         float iconPadY = (headerRect.Y - iconSize) * 0.5f;
         var iconPos = startPos + new Vector2(12, iconPadY);
@@ -127,7 +154,6 @@ public class LoadoutCard
                 ImGui.GetColorU32(Theme.AccentPrimary with { W = 0.3f }), 4f);
         }
 
-        // Job Abbreviation Badge
         float textStartX = iconPos.X + iconSize + 8;
         float textPadY = (headerRect.Y - ImGui.GetTextLineHeight()) * 0.5f;
 
@@ -137,10 +163,8 @@ public class LoadoutCard
         dl.AddRectFilled(badgePos, badgeEnd, ImGui.GetColorU32(Theme.JobBadgeBg), 4f);
         dl.AddText(badgePos + new Vector2(6, 2), ImGui.GetColorU32(Theme.AccentPrimary), jobAbbr);
 
-        // Pills origin
         Vector2 currentPillEnd = badgeEnd;
 
-        // IL Pill Badge
         if (avgIL > 0)
         {
             var ilSize = ImGui.CalcTextSize(ilText);
@@ -170,13 +194,14 @@ public class LoadoutCard
             currentPillEnd = bisPillEnd;
         }
 
-        // Expand/Collapse Arrow
-        var arrowText = isOpen ? "▼" : "▶";
-        var arrowSize = ImGui.CalcTextSize(arrowText);
-        var arrowPos = new Vector2(barEnd.X - arrowSize.X - 10, startPos.Y + textPadY);
-        dl.AddText(arrowPos, ImGui.GetColorU32(Theme.TextDisabled), arrowText);
+        var arrowIcon = isOpen ? FontAwesomeIcon.CaretDown : FontAwesomeIcon.CaretRight;
+        var arrowSize = 16f; // FontAwesome icon size
+        var arrowPos = new Vector2(barEnd.X - arrowSize - 10, startPos.Y + (headerRect.Y - arrowSize) * 0.5f);
 
-        // Last Updated timestamp
+        ImGui.PushFont(UiBuilder.IconFont);
+        dl.AddText(UiBuilder.IconFont, arrowSize, arrowPos, ImGui.GetColorU32(Theme.TextDisabled), arrowIcon.ToIconString());
+        ImGui.PopFont();
+
         DateTime lastUpdated = gearSet?.LastUpdated ?? bisData?.LastUpdated ?? default;
         if (lastUpdated != default)
         {
@@ -186,7 +211,6 @@ public class LoadoutCard
             dl.AddText(timePos, ImGui.GetColorU32(Theme.TextDisabled), timeText);
         }
 
-        // Tooltip
         if (isHovered)
         {
             ImGui.BeginTooltip();
@@ -211,12 +235,18 @@ public class LoadoutCard
                 ImGui.Spacing();
                 if (costs != null)
                     bisView.DrawCompactCostSummary(costs);
+                if (bisData != null)
+                    bisView.DrawStatSummary(bisData.Items, bisData.FoodId);
             }
             else if (gearSet != null)
             {
                 DrawGearSplit(gearSet);
                 ImGui.Spacing();
-                ImGui.TextColored(Theme.LinkAction, "  → Set up a BiS target to see slot-by-slot comparison");
+                ImGui.PushFont(UiBuilder.IconFont);
+                ImGui.TextColored(Theme.LinkAction, FontAwesomeIcon.ArrowRight.ToIconString());
+                ImGui.PopFont();
+                ImGui.SameLine(0, 4);
+                ImGui.TextColored(Theme.LinkAction, "Set up a BiS target to see slot-by-slot comparison");
             }
             else
             {

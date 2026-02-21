@@ -12,17 +12,8 @@ namespace Understudy.Managers;
 /// </summary>
 public class MateriaTextureManager : IDisposable
 {
-    // The ULD wrapper handles loading texture parts from the game UI logic
-    // CopeSeetheMeld uses: Plugin.PluginInterface.UiBuilder.LoadUld("ui/uld/ItemDetail.uld")
-    // Note: In modern Dalamud, verify if UldWrapper exists or if we need to access via UiBuilder.
-    // The previous code snippet used: var materiaUld = Plugin.PluginInterface.UiBuilder.LoadUld("ui/uld/ItemDetail.uld");
-    // And method: LoadTexturePart("ui/uld/ItemDetail_hr1.tex", partId)
-    
-    // Grades 1-12 Normal
-    private static readonly int[] IconParts = [6, 5, 4, 3, 21, 23, 25, 27, 29, 31, 33, 35];
-    
-    // Grades 1-12 Overmeld (though we might not need overmeld visuals specifically yet, keeping for completeness)
-    private static readonly int[] IconOvermeldParts = [20, 19, 18, 17, 22, 24, 26, 28, 30, 32, 34, 36];
+    private static readonly int[] IconParts = [6, 5, 4, 3, 21, 23, 25, 27, 29, 31, 33, 35]; // Grades 1-12
+    private static readonly int[] IconOvermeldParts = [20, 19, 18, 17, 22, 24, 26, 28, 30, 32, 34, 36]; // Grades 1-12 Overmeld
 
     private readonly List<IDalamudTextureWrap?> materiaIcons = new();
     private dynamic? uldWrapper; // Using dynamic to avoid type dependency issues until confirmed
@@ -32,7 +23,6 @@ public class MateriaTextureManager : IDisposable
     {
         try
         {
-            // Attempt to load ULD wrapper safely using reflection to avoid runtime crashes if API changes
             var uiBuilder = Plugin.PluginInterface.UiBuilder;
             var loadUldMethod = uiBuilder.GetType().GetMethod("LoadUld");
             
@@ -55,13 +45,11 @@ public class MateriaTextureManager : IDisposable
                 }
             }
             
-            // If failed to load stylized icons, we will just have empty list and fallback later or use standard icons
             if (materiaIcons.Count == 0)
             {
                 Plugin.Log.Warning("Could not load stylized materia icons from ULD. Using fallbacks if available.");
             }
 
-            // Build Grade Lookup
             var matSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Materia>();
             if (matSheet != null)
             {
