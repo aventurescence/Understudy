@@ -1,4 +1,4 @@
-# ![Understudy](Understudy/aSSETS/Understudy2.png) Understudy
+# ![Understudy](Understudy/Assets/Understudy2.png) Understudy
 
 Your raid progression and currency tracker.
 

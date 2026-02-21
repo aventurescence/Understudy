@@ -9,6 +9,10 @@ on:
         description: 'Version to release (e.g. 1.2.0.0). Leave blank to auto-increment revision.'
         required: false
         type: string
+      changelog:
+        description: 'Changelog for this release. If blank, will use commit history.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -55,6 +59,32 @@ jobs:
         echo "tag=v$fullVersion" >> $env:GITHUB_OUTPUT
         echo "Resolved version: $fullVersion (tag: v$fullVersion)"
 
+    - name: Determine changelog
+      id: changelog
+      shell: pwsh
+      run: |
+        $inputChangelog = '${{ github.event.inputs.changelog }}'
+        if ($inputChangelog) {
+          $content = $inputChangelog
+        } else {
+          $latestTag = git describe --tags --abbrev=0 2>$null
+          if ($latestTag) {
+            $content = git log "${latestTag}..HEAD" --pretty=format:"- %s"
+          } else {
+            $content = "Initial release"
+          }
+        }
+        if (-not $content) { $content = "Minor fixes and improvements" }
+
+        # Output with multiline support for release body
+        "content<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        $content | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+        # Escape for JSON payload (single line)
+        $jsonContent = $content -replace '"', '\"' -replace "\r?\n", " \n "
+        echo "json_content=$jsonContent" >> $env:GITHUB_OUTPUT
+
     - name: Check if tag already exists
       id: check_tag
       shell: pwsh
@@ -98,7 +128,11 @@ jobs:
         name: ${{ steps.version.outputs.tag }}
         tag_name: ${{ steps.version.outputs.tag }}
         body: |
-          Release ${{ steps.version.outputs.tag }} (assembly version ${{ steps.version.outputs.version }})
+          ### Changes in ${{ steps.version.outputs.tag }}
+          ${{ steps.changelog.outputs.content }}
+          
+          ---
+          *Assembly version: ${{ steps.version.outputs.version }}*
 
     - name: Trigger Plugin Master Update
       if: steps.check_tag.outputs.exists == 'false' && success()
@@ -107,4 +141,4 @@ jobs:
         token: ${{ secrets.PAT }}
         repository: aventurescence/churinplugins
         event-type: update-pluginmaster
-        client-payload: '{"name": "Understudy", "version": "${{ steps.version.outputs.tag }}", "download_url": "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/latest.zip"}'
+        client-payload: '{"name": "Understudy", "version": "${{ steps.version.outputs.tag }}", "changelog": "${{ steps.changelog.outputs.json_content }}", "download_url": "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/latest.zip"}'
