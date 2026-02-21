@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using Dalamud.Interface;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Bindings.ImGui;
@@ -101,11 +102,13 @@ public class MateriaDisplay
         if (materia == null || !materia.Any(m => m > 0)) return;
 
         ImGui.SameLine(0, 4);
+        ImGui.PushFont(UiBuilder.IconFont);
         foreach (var m in materia.Where(x => x > 0))
         {
-            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 0.8f), "●");
+            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 0.8f), FontAwesomeIcon.Circle.ToIconString());
             ImGui.SameLine(0, 2);
         }
+        ImGui.PopFont();
     }
 
     private void DrawMateriaIcon(ImDrawListPtr drawList, Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Item> sheet, Vector2 startPos, int index, uint matId, bool isGhost, bool isError, bool isValid, bool isMissing, string? expectedTooltip)
@@ -153,6 +156,13 @@ public class MateriaDisplay
                 {
                     ImGui.SameLine();
                     ImGui.TextColored(Theme.TextSecondary, status);
+                }
+
+                var (paramId, statValue) = plugin.StatCalculator.GetMateriaStatBonus(matId);
+                if (paramId != 0)
+                {
+                    var statName = plugin.StatCalculator.GetStatName(paramId);
+                    ImGui.TextColored(Theme.AccentSecondary, $"+{statValue} {statName}");
                 }
 
                 if (!string.IsNullOrEmpty(expectedTooltip))
