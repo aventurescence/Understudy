@@ -27,12 +27,15 @@ public sealed class Plugin : IDalamudPlugin
 
     private const string CommandName = "/understudy";
 
+    internal static TierDiscovery? TierDiscovery { get; private set; }
+
     public Configuration Configuration { get; init; }
     public TomestoneManager TomestoneManager { get; init; }
     public GearManager GearManager { get; init; }
     public RaidManager RaidManager { get; init; }
     public MiscellanyManager MiscellanyManager { get; init; }
     public BiSManager BiSManager { get; init; }
+    public StatCalculator StatCalculator { get; init; }
     public MateriaTextureManager MateriaTextures { get; init; }
 
     internal readonly HttpClient HttpClient = new();
@@ -46,12 +49,22 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        
+
+        if (Configuration.CharacterOrder.Count == 0 && Configuration.Characters.Count > 0)
+        {
+            Configuration.CharacterOrder.AddRange(Configuration.Characters.Keys);
+            Configuration.Save();
+        }
+
+        TierDiscovery = new TierDiscovery(DataManager, Log);
+        TierConfig.Initialize(TierDiscovery);
+
         TomestoneManager = new TomestoneManager(DataManager);
         GearManager = new GearManager(DataManager, ObjectTable);
         RaidManager = new RaidManager(DataManager);
         MiscellanyManager = new MiscellanyManager(DataManager, Log);
         BiSManager = new BiSManager(this, DataManager, Log);
+        StatCalculator = new StatCalculator(DataManager, Log);
         MateriaTextures = new MateriaTextureManager(this);
 
         ConfigWindow = new ConfigWindow(this);
@@ -74,8 +87,6 @@ public sealed class Plugin : IDalamudPlugin
 
         Log.Information("Understudy initialized.");
 
-        // Check if already logged in (e.g. plugin reloaded while game running)
-        // Must run on Framework thread to access ObjectTable/PlayerState safely
         if (ClientState.IsLoggedIn)
         {
             Framework.Update += OnFrameworkUpdate;
@@ -84,7 +95,6 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnFrameworkUpdate(IFramework framework)
     {
-        // Run once then unsubscribe
         Framework.Update -= OnFrameworkUpdate;
         
         try 
@@ -120,6 +130,7 @@ public sealed class Plugin : IDalamudPlugin
         7,  // THM
         26, // ACN
         29, // ROG
+        36, //BLU
         
         // DoH
         8, 9, 10, 11, 12, 13, 14, 15,
@@ -143,21 +154,20 @@ public sealed class Plugin : IDalamudPlugin
                 WorldId = p?.HomeWorld.RowId ?? 0,
                 ContentId = CurrentContentId
             };
+
+            if (!Configuration.CharacterOrder.Contains(CurrentContentId))
+                Configuration.CharacterOrder.Add(CurrentContentId);
         }
         
         var charData = Configuration.Characters[CurrentContentId];
         charData.Tomestones = TomestoneManager.UpdateTomestones();
         
-        // Gear is NOT auto-tracked. Player must explicitly click "+" to track.
-        
-        // Cleanup excluded jobs from existing data
         foreach (var id in ExcludedJobs)
         {
             charData.GearSets.Remove(id);
             charData.BisSets.Remove(id);
         }
         
-        // Raid Progress: Use WeeklyLockoutInfo from PlayerState
         charData.RaidProgress = RaidManager.GetRaidDataFromLockoutInfo();
         charData.Miscellany = MiscellanyManager.ScanInventories();
         
@@ -166,12 +176,14 @@ public sealed class Plugin : IDalamudPlugin
 
     /// <summary>
     /// Manually captures the currently equipped gearset and adds it to the
-    /// active character's tracked gear sets. Called when the user clicks "+".
+    /// specified character's tracked gear sets. Called when the user clicks "+".
+    /// If no characterId is provided, defaults to the currently logged-in character.
     /// </summary>
-    public void TrackCurrentGearset()
+    public void TrackCurrentGearset(ulong? characterId = null)
     {
-        if (CurrentContentId == 0) return;
-        if (!Configuration.Characters.TryGetValue(CurrentContentId, out var charData)) return;
+        var targetId = characterId ?? CurrentContentId;
+        if (targetId == 0) return;
+        if (!Configuration.Characters.TryGetValue(targetId, out var charData)) return;
 
         var gear = GearManager.UpdateGear();
         if (gear.JobId == 0) return;
@@ -184,12 +196,11 @@ public sealed class Plugin : IDalamudPlugin
 
         charData.GearSets[gear.JobId] = gear;
         Configuration.Save();
-        Log.Information("Tracked gearset for job {JobId} (IL {IL})", gear.JobId, gear.AverageItemLevel);
+        Log.Information("Tracked gearset for job {JobId} (IL {IL}) for character {CharId}", gear.JobId, gear.AverageItemLevel, targetId);
     }
 
     public void RunOnFramework(Action action)
     {
-        // Wrapper to auto-unsubscribe
         var handler = new FrameworkHandler(action, Framework);
         Framework.Update += handler.OnUpdate;
     }
@@ -219,21 +230,21 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
-    public void CheckAndTrackGear(uint jobId)
+    public void CheckAndTrackGear(uint jobId, ulong? characterId = null)
     {
+        var targetId = characterId ?? CurrentContentId;
         RunOnFramework(() =>
         {
-            if (CurrentContentId == 0) return;
-            if (!Configuration.Characters.TryGetValue(CurrentContentId, out var charData)) return;
+            if (targetId == 0) return;
+            if (!Configuration.Characters.TryGetValue(targetId, out var charData)) return;
 
-            // If we already have a gearset for this job, do nothing
             if (charData.GearSets.ContainsKey(jobId)) return;
+            if (targetId != CurrentContentId) return;
 
-            // Check if player is currently on this job
             if (Plugin.ObjectTable.Length > 0 && Plugin.ObjectTable[0] is IPlayerCharacter player && player.ClassJob.RowId == jobId)
             {
                 Log.Information("Auto-tracking gear for imported BiS job {JobId}", jobId);
-                TrackCurrentGearset();
+                TrackCurrentGearset(targetId);
             }
         });
     }
@@ -259,7 +270,6 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnCommand(string command, string args)
     {
-        // In response to the slash command, toggle the display status of our main ui
         MainWindow.Toggle();
     }
     

@@ -10,53 +10,83 @@ namespace Understudy.Managers;
 /// <summary>
 /// Scans inventories for raid items of the current tier:
 /// books (Mythos), twine, glaze, solvent, and unopened coffers.
-/// Searches in: player inventory, chocobo saddlebag, and premium saddlebag.
+/// Uses item IDs discovered by TierDiscovery from SpecialShop data.
 /// </summary>
 public unsafe class MiscellanyManager
 {
     private readonly IDataManager dataManager;
     private readonly IPluginLog log;
 
-    // Item IDs searched by Lumina on startup
-    private readonly Dictionary<string, uint> bookItemIds = new();   // "M1"->itemId
+    private readonly Dictionary<string, uint> bookItemIds = new();
     private uint twineItemId;
     private uint glazeItemId;
     private uint solventItemId;
     private uint universalTomestoneItemId;
     private readonly List<(uint id, string name)> cofferItems = new();
 
-    // Icon IDs for each item to render in the UI
-    private readonly Dictionary<string, ushort> bookIconIds = new();  // "M1"->iconId
+    private readonly Dictionary<string, ushort> bookIconIds = new();
     private ushort twineIconId;
     private ushort glazeIconId;
     private ushort solventIconId;
     private ushort universalTomestoneIconId;
-    private readonly Dictionary<string, ushort> cofferIconIds = new(); // nombre->iconId
+    private readonly Dictionary<string, ushort> cofferIconIds = new();
 
-    // Fast set for lookup during scanning
     private readonly HashSet<uint> trackedIds = new();
-
-    // Keywords by category — sourced from TierConfig
-    private const string BookKeyword = TierConfig.BookKeyword;
-    private const string MaterialKeyword = TierConfig.MaterialKeyword;
-    private const string CofferKeyword = TierConfig.CofferKeyword;
-    private const string UniversalTomestoneKeyword = TierConfig.UniversalTomestoneKeyword;
 
     public MiscellanyManager(IDataManager dataManager, IPluginLog log)
     {
         this.dataManager = dataManager;
         this.log = log;
-        LookupItemIds();
+        LoadFromDiscovery();
+        LookupCoffers();
     }
 
     /// <summary>
-    /// Searches Lumina for item IDs of the current tier using keywords by category:
-    ///   - Books: "AAC Illustrated" (HW Edition I-IV)
-    ///   - Materials: "Thundersteeping" (Twine/Glaze/Solvent)
-    ///   - Coffers: "Grand Champion" (equipment coffers)
+    /// Loads book, material, and universal tomestone IDs from TierDiscovery.
+    /// These were already discovered from SpecialShop data.
     /// </summary>
-    private void LookupItemIds()
+    private void LoadFromDiscovery()
     {
+        var discovery = Plugin.TierDiscovery;
+        if (discovery == null) return;
+
+        foreach (var (key, id) in discovery.BookItemIds)
+        {
+            bookItemIds[key] = id;
+            trackedIds.Add(id);
+        }
+        foreach (var (key, icon) in discovery.BookIconIds)
+            bookIconIds[key] = icon;
+
+        twineItemId = discovery.TwineItemId;
+        twineIconId = discovery.TwineIconId;
+        if (twineItemId != 0) trackedIds.Add(twineItemId);
+
+        glazeItemId = discovery.GlazeItemId;
+        glazeIconId = discovery.GlazeIconId;
+        if (glazeItemId != 0) trackedIds.Add(glazeItemId);
+
+        solventItemId = discovery.SolventItemId;
+        solventIconId = discovery.SolventIconId;
+        if (solventItemId != 0) trackedIds.Add(solventItemId);
+
+        universalTomestoneItemId = discovery.UniversalTomestoneItemId;
+        universalTomestoneIconId = discovery.UniversalTomestoneIconId;
+        if (universalTomestoneItemId != 0) trackedIds.Add(universalTomestoneItemId);
+
+        log.Information("Miscellany init from discovery: {BookCount} books, twine={Twine}, glaze={Glaze}, solvent={Solvent}, univTome={Tome}",
+            bookItemIds.Count, twineItemId, glazeItemId, solventItemId, universalTomestoneItemId);
+    }
+
+    /// <summary>
+    /// Searches Lumina for coffers matching the savage gear prefix.
+    /// Coffers share the same name prefix as savage gear.
+    /// </summary>
+    private void LookupCoffers()
+    {
+        var cofferKeyword = TierConfig.CofferKeyword;
+        if (string.IsNullOrEmpty(cofferKeyword)) return;
+
         var sheet = dataManager.GetExcelSheet<Item>();
         if (sheet == null) return;
 
@@ -65,93 +95,19 @@ public unsafe class MiscellanyManager
             var name = item.Name.ToString();
             if (string.IsNullOrEmpty(name)) continue;
 
-            // ── Raid Books ──
-            if (name.Contains(BookKeyword, StringComparison.OrdinalIgnoreCase))
-            {
-                int floor = DetermineFloor(name);
-                if (floor > 0)
-                {
-                    var key = $"M{floor}";
-                    bookItemIds[key] = item.RowId;
-                    bookIconIds[key] = item.Icon;
-                    trackedIds.Add(item.RowId);
-                    log.Debug("Miscellany book: {Name} (ID {Id}, Icon {Icon}) -> {Key}", name, item.RowId, item.Icon, key);
-                }
-            }
-
-            // ── Upgrade Materials (Twine/Glaze/Solvent) ──
-            if (name.Contains(MaterialKeyword, StringComparison.OrdinalIgnoreCase))
-            {
-                var lower = name.ToLowerInvariant();
-                if (lower.Contains("twine"))
-                {
-                    twineItemId = item.RowId;
-                    twineIconId = item.Icon;
-                    trackedIds.Add(item.RowId);
-                    log.Debug("Miscellany twine: {Name} (ID {Id}, Icon {Icon})", name, item.RowId, item.Icon);
-                }
-                else if (lower.Contains("glaze"))
-                {
-                    glazeItemId = item.RowId;
-                    glazeIconId = item.Icon;
-                    trackedIds.Add(item.RowId);
-                    log.Debug("Miscellany glaze: {Name} (ID {Id}, Icon {Icon})", name, item.RowId, item.Icon);
-                }
-                else if (lower.Contains("solvent"))
-                {
-                    solventItemId = item.RowId;
-                    solventIconId = item.Icon;
-                    trackedIds.Add(item.RowId);
-                    log.Debug("Miscellany solvent: {Name} (ID {Id}, Icon {Icon})", name, item.RowId, item.Icon);
-                }
-                else
-                {
-                    // Log items that match MaterialKeyword but not subcategories
-                    log.Information("Miscellany UNMATCHED material: {Name} (ID {Id}, Icon {Icon})", name, item.RowId, item.Icon);
-                }
-            }
-
-            // ── Unopened Coffers ──
-            if (name.Contains(CofferKeyword, StringComparison.OrdinalIgnoreCase)
+            if (name.Contains(cofferKeyword, StringComparison.OrdinalIgnoreCase)
                 && name.Contains("Coffer", StringComparison.OrdinalIgnoreCase))
             {
                 cofferItems.Add((item.RowId, name));
                 cofferIconIds[name] = item.Icon;
                 trackedIds.Add(item.RowId);
-                log.Debug("Miscellany coffer: {Name} (ID {Id}, Icon {Icon})", name, item.RowId, item.Icon);
-            }
-
-            // ── Universal Tomestone 3.0 ──
-            if (name.Contains(UniversalTomestoneKeyword, StringComparison.OrdinalIgnoreCase)
-                && universalTomestoneItemId == 0)
-            {
-                universalTomestoneItemId = item.RowId;
-                universalTomestoneIconId = item.Icon;
-                trackedIds.Add(item.RowId);
-                log.Debug("Miscellany Universal Tomestone: {Name} (ID {Id}, Icon {Icon})", name, item.RowId, item.Icon);
+                log.Debug("Miscellany coffer: {Name} (ID {Id})", name, item.RowId);
             }
         }
 
-        log.Information("Miscellany init: {BookCount} books, twine={Twine}, glaze={Glaze}, solvent={Solvent}, {CofferCount} coffers",
-            bookItemIds.Count, twineItemId, glazeItemId, solventItemId, cofferItems.Count);
+        log.Information("Miscellany coffers: {Count} found", cofferItems.Count);
     }
 
-    /// <summary>
-    /// Determines the raid floor based on the roman numeral at the end of the name.
-    /// </summary>
-    private static int DetermineFloor(string name)
-    {
-        name = name.Trim();
-        if (name.EndsWith(" IV", StringComparison.Ordinal)) return 4;
-        if (name.EndsWith(" III", StringComparison.Ordinal)) return 3;
-        if (name.EndsWith(" II", StringComparison.Ordinal)) return 2;
-        if (name.EndsWith(" I", StringComparison.Ordinal)) return 1;
-        return 0;
-    }
-
-    /// <summary>
-    /// Gets the icon ID of a miscellany item by category and key.
-    /// </summary>
     public ushort GetBookIconId(string key) => bookIconIds.GetValueOrDefault(key);
     public ushort GetTwineIconId() => twineIconId;
     public ushort GetGlazeIconId() => glazeIconId;
@@ -166,11 +122,9 @@ public unsafe class MiscellanyManager
     {
         var data = new MiscellanyData { LastUpdated = DateTime.UtcNow };
 
-        // Initialize book counts to 0
         foreach (var key in bookItemIds.Keys)
             data.BookCounts[key] = 0;
 
-        // Ensure M1-M4 exist even if no items were found
         for (int i = 1; i <= 4; i++)
         {
             var key = $"M{i}";
@@ -183,7 +137,6 @@ public unsafe class MiscellanyManager
         var inventoryManager = InventoryManager.Instance();
         if (inventoryManager == null) return data;
 
-        // Containers to scan: inventory + saddlebag + premium saddlebag
         var containers = new[]
         {
             InventoryType.Inventory1,
@@ -196,7 +149,6 @@ public unsafe class MiscellanyManager
             InventoryType.PremiumSaddleBag2,
         };
 
-        // Accumulate quantities by itemId
         var itemCounts = new Dictionary<uint, int>();
 
         foreach (var containerType in containers)
@@ -217,7 +169,6 @@ public unsafe class MiscellanyManager
             }
         }
 
-        // Map counts to data structure
         foreach (var kvp in bookItemIds)
             data.BookCounts[kvp.Key] = itemCounts.GetValueOrDefault(kvp.Value);
 

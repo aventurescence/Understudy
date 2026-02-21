@@ -14,8 +14,10 @@ public class Configuration : IPluginConfiguration
     public bool ShowJobCategoryInDashboard { get; set; } = true;
     public bool CompactMode { get; set; } = false;
     public bool VerboseLogging { get; set; } = false;
+    public bool ReorderUnlocked { get; set; } = false;
 
     public Dictionary<ulong, CharacterData> Characters { get; set; } = new();
+    public List<ulong> CharacterOrder { get; set; } = new();
 
     public uint DashboardFrameImageId { get; set; } = 0;
     public float DashboardFrameOpacity { get; set; } = 0.6f;

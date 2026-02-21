@@ -12,13 +12,8 @@ public unsafe class RaidManager
     private readonly IDataManager dataManager;
     private const int WeeklyRaidsOffset = 0x5F0; // PlayerState.WeeklyLockoutInfo
 
-    // Map of raid name -> ContentFinderCondition RowId
     private readonly Dictionary<string, uint> raidIds = new();
-
-    // Map of raid name -> Icon ID for the banner image
     private readonly Dictionary<string, uint> raidImageIds = new();
-
-    // Names of the raids we want to track
     private readonly string[] targetRaids = TierConfig.RaidNames;
 
     public RaidManager(IDataManager dataManager)
@@ -73,12 +68,7 @@ public unsafe class RaidManager
         if (playerState == null) return data;
         if (!raidIds.TryGetValue(targetRaids[0], out var m1CfcId)) return data;
 
-        // WeeklyLockoutInfo is a bitfield at PlayerState + 0x5F0.
-        // Observed bit mapping:
-        // M1 (1069) -> Bit 2
-        // M2 (1071) -> Bit 4
-        // M3 (1073) -> Bit 3 (After clearing M3: bits 1,2,3,4 active. M1=2, M2=4, assuming M3=3)
-        // M4 (1075) -> Bit 5 (Provisional, currently 0 and locked)
+        // WeeklyLockoutInfo bitfield: M1=bit2, M2=bit4, M3=bit3, M4=bit5
         var bitMapping = new int[] { 2, 4, 3, 5 };
         var lockoutBase = (byte*)playerState + WeeklyRaidsOffset;
 

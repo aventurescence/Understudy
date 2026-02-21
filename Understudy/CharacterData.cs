@@ -16,13 +16,16 @@ public class CharacterData
     public Dictionary<uint, GearSetData> GearSets { get; set; } = new(); // Keyed by Job ID
     public Dictionary<uint, BiSData> BisSets { get; set; } = new(); // Keyed by Job ID
     public MiscellanyData Miscellany { get; set; } = new();
+
+    public uint FrameImageId { get; set; } = 0;
+    public float FrameOpacity { get; set; } = 0.6f;
+
+    public List<uint> LoadoutOrder { get; set; } = new();
 }
 
 [Serializable]
 public class RaidData
 {
-    // Raid Tier (e.g. Arcadion Savage M1-M4)
-    // We can store boolean flags for each floor/turn.
     public bool M1 { get; set; }
     public bool M2 { get; set; }
     public bool M3 { get; set; }
@@ -56,9 +59,6 @@ public class GearItem
 [Serializable]
 public class TomestoneData
 {
-    // Mnemonics (Weekly Capped)
-    // Mathematics
-    
     public int Mnemonics { get; set; }
     public int MnemonicsWeekly { get; set; }
     public int MnemonicsCap { get; set; } = 2000;

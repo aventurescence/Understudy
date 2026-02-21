@@ -8,9 +8,7 @@ public unsafe class TomestoneManager
 {
     private readonly IDataManager dataManager;
     
-    // Tomestone Item IDs (Row IDs from the TomestonesItem sheet, NOT the Item sheet)
-    // 49 = Mnemonics (Weekly Capped)
-    // 48 = Mathematics (Uncapped)
+    // TomestonesItem sheet Row IDs (not Item sheet IDs)
     private const uint MnemonicsId = 49;
     private const uint MathematicsId = 48;
 
@@ -29,15 +27,11 @@ public unsafe class TomestoneManager
             LastUpdated = DateTime.UtcNow
         };
 
-        // Mnemonics (Capped) - Use GetTomestoneCount with the item ID
         data.Mnemonics = (int)manager->GetTomestoneCount(MnemonicsId);
         data.MnemonicsCap = 2000;
         data.MnemonicsWeekly = manager->GetWeeklyAcquiredTomestoneCount();
-        
-        // Get the actual weekly limit from the game instead of hardcoding 450
         data.MnemonicsWeeklyCap = InventoryManager.GetLimitedTomestoneWeeklyLimit();
 
-        // Mathematics (Uncapped)
         data.Mathematics = (int)manager->GetTomestoneCount(MathematicsId);
         data.MathematicsCap = 2000;
         data.MathematicsWeekly = 0;

@@ -1,31 +1,36 @@
+using Understudy.Managers;
+
 namespace Understudy;
 
 /// <summary>
-/// Centralizes all tier-specific constants (raid names, gear prefixes, item keywords).
-/// When a new raid tier releases, update this single file instead of hunting through managers.
+/// Provides tier-specific data discovered automatically from SpecialShop at startup.
+/// No manual updates needed when a new raid tier releases.
 /// </summary>
 public static class TierConfig
 {
+    private static TierDiscovery? discovery;
+
+    /// <summary>Called once at startup to bind the discovery data.</summary>
+    public static void Initialize(TierDiscovery tierDiscovery) => discovery = tierDiscovery;
+
     // ── Raid Tier ──────────────────────────────────────────────────
-    public static readonly string[] RaidNames = new[]
-    {
-        "AAC Heavyweight M1 (Savage)",
-        "AAC Heavyweight M2 (Savage)",
-        "AAC Heavyweight M3 (Savage)",
-        "AAC Heavyweight M4 (Savage)",
-    };
+    public static string[] RaidNames => discovery?.RaidNames ?? [];
 
     // ── Gear Source Classification (item name prefixes) ────────────
-    public const string SavageGearPrefix = "Grand Champion";
-    public const string AugmentedTomeGearPrefix = "Augmented Bygone";
-    public const string BaseTomeGearPrefix = "Bygone";
+    public static string SavageGearPrefix => discovery?.SavageGearPrefix ?? string.Empty;
+    public static string AugmentedTomeGearPrefix => discovery?.AugmentedTomeGearPrefix ?? string.Empty;
+    public static string BaseTomeGearPrefix => discovery?.BaseTomeGearPrefix ?? string.Empty;
 
     // ── Miscellany Item Keywords ──────────────────────────────────
-    public const string BookKeyword = "AAC Illustrated";
-    public const string MaterialKeyword = "Thunderstee";
-    public const string CofferKeyword = "Grand Champion";
-    public const string UniversalTomestoneKeyword = "Universal Tomestone";
+    public static string BookKeyword => discovery?.BookKeyword ?? string.Empty;
+    public static string MaterialKeyword => discovery?.MaterialKeyword ?? string.Empty;
+    public static string CofferKeyword => discovery?.CofferKeyword ?? string.Empty;
+    public static string UniversalTomestoneKeyword => discovery?.UniversalTomestoneKeyword ?? string.Empty;
 
     // ── Display ───────────────────────────────────────────────────
-    public const string CofferDisplayTrim = "Grand Champion's ";
+    public static string CofferDisplayTrim => discovery?.CofferDisplayTrim ?? string.Empty;
+
+    // ── Food Filtering ──────────────────────────────────────────
+    public const uint FoodCategoryId = 46;       // ItemUICategory: Meal (stable across tiers)
+    public static uint FoodMinItemLevel => discovery?.FoodMinItemLevel ?? 690;
 }
