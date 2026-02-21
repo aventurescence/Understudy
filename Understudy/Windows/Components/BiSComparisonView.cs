@@ -51,6 +51,23 @@ public class BiSComparisonView
                         ImGui.TextColored(Theme.AccentPrimary, foodItem.Name.ToString());
                         ImGui.SameLine();
                         ImGui.TextColored(Theme.TextDisabled, "(BiS Food)");
+
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.BeginTooltip();
+                            ImGui.TextColored(Theme.AccentPrimary, foodItem.Name.ToString());
+                            ImGui.TextColored(Theme.TextDisabled, "(HQ)");
+                            ImGui.Separator();
+                            var foodInfo = plugin.StatCalculator.GetFoodStatInfo(bisData.FoodId);
+                            foreach (var fi in foodInfo)
+                            {
+                                if (fi.IsRelative)
+                                    ImGui.TextColored(Theme.TextSecondary, $"{fi.StatName}: +{fi.Percent}%% (max {fi.MaxHQ})");
+                                else
+                                    ImGui.TextColored(Theme.TextSecondary, $"{fi.StatName}: +{fi.MaxHQ}");
+                            }
+                            ImGui.EndTooltip();
+                        }
                     }
                 }
             }
@@ -80,8 +97,12 @@ public class BiSComparisonView
                 if (comp.IsOwned)
                 {
                     ImGui.TextColored(Theme.AccentSuccess, comp.CurrentItem.Name);
+                    bool ownedHovered = ImGui.IsItemHovered();
                     ImGui.SameLine();
                     materiaDisplay.DrawMateriaRow(comp.CurrentItem.Materia, comp.BiSItem?.Materia);
+
+                    if (ownedHovered)
+                        DrawGearStatsTooltip(comp.CurrentItem.ItemId, comp.CurrentItem.Materia);
                 }
                 else
                 {
@@ -99,6 +120,8 @@ public class BiSComparisonView
                         ImGui.TextColored(Theme.TextSecondary, comp.BiSItem.Source.ToString());
                         if (!string.IsNullOrEmpty(comp.AcquisitionLabel))
                             ImGui.TextColored(Theme.TextDisabled, $"Source: {comp.AcquisitionLabel}");
+                        ImGui.Separator();
+                        DrawGearStatsTooltipContent(comp.BiSItem.ItemId, comp.BiSItem.Materia);
                         ImGui.EndTooltip();
                     }
                 }
@@ -117,6 +140,8 @@ public class BiSComparisonView
                     ImGui.TextColored(Theme.TextSecondary, comp.BiSItem.Source.ToString());
                     if (!string.IsNullOrEmpty(comp.AcquisitionLabel))
                         ImGui.TextColored(Theme.TextDisabled, $"Source: {comp.AcquisitionLabel}");
+                    ImGui.Separator();
+                    DrawGearStatsTooltipContent(comp.BiSItem.ItemId, comp.BiSItem.Materia);
                     ImGui.EndTooltip();
                 }
             }
@@ -176,6 +201,83 @@ public class BiSComparisonView
             ImGui.SameLine(0, 6);
         }
 
+        ImGui.NewLine();
+    }
+
+    // ── Stat Display ──────────────────────────────────────────────
+
+    private void DrawGearStatsTooltip(uint itemId, List<uint>? materia)
+    {
+        ImGui.BeginTooltip();
+        DrawGearStatsTooltipContent(itemId, materia);
+        ImGui.EndTooltip();
+    }
+
+    private void DrawGearStatsTooltipContent(uint itemId, List<uint>? materia)
+    {
+        var (stats, materiaDetails) = plugin.StatCalculator.CalcMeldedStats(itemId, materia);
+        var baseStats = plugin.StatCalculator.CalcGearStats(itemId);
+
+        ImGui.TextColored(Theme.TextSecondary, "Stats:");
+        foreach (var (paramId, totalValue) in stats.OrderBy(kv => kv.Key))
+        {
+            var name = plugin.StatCalculator.GetStatName(paramId);
+            var baseVal = baseStats.TryGetValue(paramId, out var bv) ? bv : 0;
+            var meldVal = totalValue - baseVal;
+
+            if (meldVal > 0)
+                ImGui.TextColored(Theme.TextPrimary, $"  {name}: {baseVal} + {meldVal} = {totalValue}");
+            else
+                ImGui.TextColored(Theme.TextPrimary, $"  {name}: {totalValue}");
+        }
+
+        if (materiaDetails.Count > 0)
+        {
+            ImGui.Spacing();
+            ImGui.TextColored(Theme.TextSecondary, "Materia:");
+            foreach (var md in materiaDetails)
+            {
+                var color = md.IsCapped ? Theme.AccentWarning : Theme.AccentSecondary;
+                var capText = md.IsCapped ? $" (capped, {md.RawValue - md.EffectiveValue} lost)" : "";
+                ImGui.TextColored(color, $"  +{md.EffectiveValue} {md.StatName}{capText}");
+            }
+        }
+    }
+
+    public void DrawStatSummary(Dictionary<int, BiSItem> items, uint foodId)
+    {
+        var totals = plugin.StatCalculator.CalcFullSetStats(items, foodId);
+        if (totals.Count == 0) return;
+
+        var substatOrder = new uint[] { 27, 44, 22, 19, 6, 45, 46 }; // CRT, DET, DH, TEN, PIE, SKS, SPS
+        var mainStats = new uint[] { 1, 2, 3, 4, 5 }; // STR, DEX, VIT, INT, MND
+
+        ImGui.Spacing();
+        ImGui.TextColored(Theme.TextSecondary, "  Stat Totals:");
+        ImGui.SameLine();
+
+        bool first = true;
+        foreach (var paramId in substatOrder)
+        {
+            if (!totals.TryGetValue(paramId, out var value) || value == 0) continue;
+            var name = plugin.StatCalculator.GetStatName(paramId);
+            var abbr = paramId switch
+            {
+                27 => "CRT",
+                44 => "DET",
+                22 => "DH",
+                19 => "TEN",
+                6 => "PIE",
+                45 => "SKS",
+                46 => "SPS",
+                _ => name
+            };
+            if (!first) ImGui.SameLine(0, 6);
+            DrawCostPill(Theme.AccentSecondary, $"{abbr} {value}");
+            first = false;
+        }
+
+        if (first) return; // no stats to show
         ImGui.NewLine();
     }
 

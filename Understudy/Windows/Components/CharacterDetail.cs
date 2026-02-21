@@ -18,6 +18,8 @@ public class CharacterDetail
 
     private ulong? characterId;
 
+    private uint? loadoutDragSourceJobId;
+
     public CharacterDetail(Plugin plugin, Action onBackRequested, LoadoutPopup loadoutPopup)
     {
         this.plugin = plugin;
@@ -41,13 +43,11 @@ public class CharacterDetail
 
         ImGui.Indent(12f);
 
-        // Header — centered character name with world pill
         ImGui.Spacing();
 
         var dl = ImGui.GetWindowDrawList();
         var contentWidth = ImGui.GetContentRegionAvail().X;
 
-        // Measure name at 1.5x scale
         ImGui.SetWindowFontScale(1.5f);
         var nameSize = ImGui.CalcTextSize(data.Name);
         ImGui.SetWindowFontScale(1.0f);
@@ -67,7 +67,6 @@ public class CharacterDetail
 
         ImGui.SameLine(0, 12);
 
-        // World pill
         var pillPos = ImGui.GetCursorScreenPos();
         var pillMin = pillPos - new Vector2(0, 2);
         var pillMax = pillPos + worldSize + new Vector2(worldPillPadding.X * 2, 4);
@@ -76,7 +75,6 @@ public class CharacterDetail
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + worldPillPadding.X);
         ImGui.TextColored(Theme.TextSecondary, worldText);
 
-        // Decorative accent line
         ImGui.Spacing();
         var linePos = ImGui.GetCursorScreenPos();
         dl.AddLine(
@@ -148,23 +146,66 @@ public class CharacterDetail
 
             uint? jobToRemove = null;
             uint? bisToRemove = null;
+            uint? dragSourceJob = loadoutDragSourceJobId;
+            uint? dragTargetJob = null;
 
-            var sortedJobs = allJobIds
-                .OrderByDescending(id => data.GearSets.TryGetValue(id, out var gs) ? gs.AverageItemLevel : 0f)
-                .ToList();
+            List<uint> sortedJobs;
+            if (data.LoadoutOrder.Count > 0)
+            {
+                sortedJobs = new List<uint>(data.LoadoutOrder.Where(id => allJobIds.Contains(id)));
+                foreach (var id in allJobIds)
+                {
+                    if (!sortedJobs.Contains(id))
+                        sortedJobs.Add(id);
+                }
+            }
+            else
+            {
+                sortedJobs = allJobIds
+                    .OrderByDescending(id => data.GearSets.TryGetValue(id, out var gs) ? gs.AverageItemLevel : 0f)
+                    .ToList();
+            }
 
             foreach (var jobId in sortedJobs)
             {
+                // Skip the dragged loadout so remaining cards reflow
+                if (loadoutDragSourceJobId.HasValue && loadoutDragSourceJobId.Value == jobId) continue;
+
                 data.GearSets.TryGetValue(jobId, out var gearSet);
                 data.BisSets.TryGetValue(jobId, out var bisData);
-                loadoutCard.Draw(jobId, gearSet, bisData, ref jobToRemove, ref bisToRemove);
+                loadoutCard.Draw(jobId, gearSet, bisData, ref jobToRemove, ref bisToRemove, ref dragSourceJob, ref dragTargetJob, characterId);
             }
+
+            if (dragSourceJob.HasValue)
+                loadoutDragSourceJobId = dragSourceJob;
+
+            if (dragTargetJob.HasValue && loadoutDragSourceJobId.HasValue && dragTargetJob != loadoutDragSourceJobId)
+            {
+                // Populate LoadoutOrder from current visual order if not already manual
+                if (data.LoadoutOrder.Count == 0)
+                    data.LoadoutOrder = new List<uint>(sortedJobs);
+
+                var srcIdx = data.LoadoutOrder.IndexOf(loadoutDragSourceJobId.Value);
+                var dstIdx = data.LoadoutOrder.IndexOf(dragTargetJob.Value);
+                if (srcIdx >= 0 && dstIdx >= 0)
+                {
+                    data.LoadoutOrder.RemoveAt(srcIdx);
+                    var insertIdx = dstIdx > srcIdx ? dstIdx - 1 : dstIdx;
+                    data.LoadoutOrder.Insert(insertIdx, loadoutDragSourceJobId.Value);
+                    plugin.Configuration.Save();
+                }
+                loadoutDragSourceJobId = null;
+            }
+
+            if (loadoutDragSourceJobId.HasValue && ImGui.IsMouseReleased(ImGuiMouseButton.Left))
+                loadoutDragSourceJobId = null;
 
             if (jobToRemove.HasValue)
             {
                 data.GearSets.Remove(jobToRemove.Value);
                 if (data.BisSets.ContainsKey(jobToRemove.Value))
                     data.BisSets.Remove(jobToRemove.Value);
+                data.LoadoutOrder.Remove(jobToRemove.Value);
                 plugin.Configuration.Save();
             }
 
@@ -181,19 +222,124 @@ public class CharacterDetail
                 ImGui.PushStyleColor(ImGuiCol.Button, Theme.BgCard);
                 ImGui.PushStyleColor(ImGuiCol.ButtonHovered, Theme.BgCardHover);
 
-                if (ImGui.Button("+ Add Loadout"))
+                ImGui.PushFont(UiBuilder.IconFont);
+                bool addClicked = ImGui.Button(FontAwesomeIcon.Plus.ToIconString() + "##addloadout");
+                ImGui.PopFont();
+                ImGui.SameLine();
+                ImGui.AlignTextToFramePadding();
+                ImGui.Text("Add Loadout");
+                if (ImGui.IsItemHovered() || ImGui.IsItemClicked())
                 {
-                     loadoutPopup.Open(characterId.Value);
+                    if (ImGui.IsItemClicked() || (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left)))
+                         loadoutPopup.Open(characterId.Value);
                 }
                 ImGui.PopStyleColor(2);
 
                 if (ImGui.IsItemHovered())
                     ImGui.SetTooltip("Track current gear, import BiS from Etro.gg,\nor manually build a loadout.");
+
+                if (data.LoadoutOrder.Count > 0)
+                {
+                    ImGui.SameLine();
+                    ImGui.PushStyleColor(ImGuiCol.Button, Theme.BgCard);
+                    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, Theme.BgCardHover);
+                    ImGui.PushFont(UiBuilder.IconFont);
+                    bool sortClicked = ImGui.Button(FontAwesomeIcon.SyncAlt.ToIconString() + "##autosort");
+                    ImGui.PopFont();
+                    ImGui.PopStyleColor(2);
+
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip("Reset to automatic sorting by item level.");
+
+                    if (sortClicked)
+                    {
+                        data.LoadoutOrder.Clear();
+                        plugin.Configuration.Save();
+                    }
+
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip("Reset to automatic sorting by item level.");
+                }
             }
+        });
+
+        // ── Character Settings Card ──────────────────────────────
+        DrawCard("CHARACTER SETTINGS", () =>
+        {
+            DrawCharacterFrameSettings(data);
         });
 
         ImGui.Unindent(12f);
     }
+
+    private void DrawCharacterFrameSettings(CharacterData data)
+    {
+        ImGui.TextColored(Theme.AccentSecondary, "Card Frame Overlay");
+        ImGui.Spacing();
+
+        var charaCardDecorationSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.CharaCardDecoration>();
+
+        uint currentFrame = data.FrameImageId;
+        string previewLabel = currentFrame == 0 ? "Use Global Default" : $"# {currentFrame}";
+
+        if (currentFrame != 0 && charaCardDecorationSheet != null)
+        {
+            foreach (var dec in charaCardDecorationSheet)
+            {
+                if ((uint)dec.Image == currentFrame)
+                {
+                    previewLabel = dec.Name.ToString();
+                    break;
+                }
+            }
+        }
+
+        ImGui.SetNextItemWidth(280f);
+        if (ImGui.BeginCombo("Frame", previewLabel))
+        {
+            if (ImGui.Selectable("Use Global Default", currentFrame == 0))
+            {
+                data.FrameImageId = 0;
+                plugin.Configuration.Save();
+            }
+
+            if (charaCardDecorationSheet != null)
+            {
+                foreach (var decoration in charaCardDecorationSheet)
+                {
+                    var name = decoration.Name.ToString();
+                    if (string.IsNullOrEmpty(name)) continue;
+
+                    uint imageId = (uint)decoration.Image;
+                    if (!IsValidFrameId(imageId)) continue;
+
+                    if (ImGui.Selectable(name, currentFrame == imageId))
+                    {
+                        data.FrameImageId = imageId;
+                        plugin.Configuration.Save();
+                    }
+                }
+            }
+            ImGui.EndCombo();
+        }
+
+        if (data.FrameImageId != 0)
+        {
+            float opacity = data.FrameOpacity;
+            ImGui.SetNextItemWidth(280f);
+            if (ImGui.SliderFloat("Frame Opacity", ref opacity, 0f, 1f))
+            {
+                data.FrameOpacity = opacity;
+                plugin.Configuration.Save();
+            }
+        }
+    }
+
+    private static bool IsValidFrameId(uint id) =>
+        (id >= 198001 && id <= 198022) ||
+        (id >= 198654 && id <= 198673) ||
+        (id >= 198701 && id <= 198726) ||
+        id == 198901 || id == 198902;
 
     // ── Card container with background, accent border and inner margins ──
     private void DrawCard(string title, Action content, Action? headerAction = null)
@@ -267,9 +413,21 @@ public class CharacterDetail
         if (weeklyMax > 0)
         {
             var wRatio = (float)weekly / weeklyMax;
-            var wColor = weekly >= weeklyMax ? Theme.AccentSuccess : Theme.ProgressColor(wRatio);
-            var capText = weekly >= weeklyMax ? "  ✓ Capped" : "";
-            ImGui.TextColored(wColor, $"  Weekly: {weekly}/{weeklyMax}{capText}");
+            if (weekly >= weeklyMax)
+            {
+                ImGui.AlignTextToFramePadding();
+                ImGui.Text("  ");
+                ImGui.SameLine(0, 0);
+                ImGui.PushFont(UiBuilder.IconFont);
+                ImGui.TextColored(Theme.AccentSuccess, FontAwesomeIcon.Check.ToIconString());
+                ImGui.PopFont();
+                ImGui.SameLine(0, 4);
+                ImGui.TextColored(Theme.AccentSuccess, "Capped");
+            }
+            else
+            {
+                ImGui.TextColored(Theme.ProgressColor(wRatio), $"  Weekly: {weekly}/{weeklyMax}");
+            }
         }
     }
 
@@ -297,11 +455,18 @@ public class CharacterDetail
 
         ImGui.TextColored(Theme.AccentSecondary, "Upgrade Materials");
 
-        SharedDrawHelpers.DrawIconWithCount(miscManager.GetTwineIconId(), iconSize, misc.TwineCount, "Twine");
-        ImGui.SameLine(0, spacing);
-        SharedDrawHelpers.DrawIconWithCount(miscManager.GetGlazeIconId(), iconSize, misc.GlazeCount, "Glaze");
-        ImGui.SameLine(0, spacing);
-        SharedDrawHelpers.DrawIconWithCount(miscManager.GetSolventIconId(), iconSize, misc.SolventCount, "Solvent");
+        bool firstMat = true;
+        void DrawMaterial(ushort iconId, int count, string label)
+        {
+            if (iconId == 0) return;
+            if (!firstMat) ImGui.SameLine(0, spacing);
+            SharedDrawHelpers.DrawIconWithCount(iconId, iconSize, count, label);
+            firstMat = false;
+        }
+
+        DrawMaterial(miscManager.GetTwineIconId(), misc.TwineCount, "Twine");
+        DrawMaterial(miscManager.GetGlazeIconId(), misc.GlazeCount, "Glaze");
+        DrawMaterial(miscManager.GetSolventIconId(), misc.SolventCount, "Solvent");
 
         if (misc.CofferCounts.Count > 0)
         {
