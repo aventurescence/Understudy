@@ -25,7 +25,7 @@ public class LoadoutTrackTab
         ImGui.Indent(12);
 
         bool isCurrentCharacter = shared.CurrentCharacterId.HasValue
-            && shared.CurrentCharacterId.Value == plugin.CurrentContentId;
+            && shared.CurrentCharacterId.Value == plugin.CharacterTracker.CurrentContentId;
 
         bool isCurrentJob = isCurrentCharacter
             && Plugin.ObjectTable.Length > 0
@@ -39,7 +39,7 @@ public class LoadoutTrackTab
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, Theme.AccentSuccess with { W = 0.70f });
             if (ImGui.Button("Snapshot Current Gear", new Vector2(260, 36)))
             {
-                plugin.TrackCurrentGearset(shared.CurrentCharacterId);
+                plugin.CharacterTracker.TrackCurrentGearset(shared.CurrentCharacterId);
             }
             ImGui.PopStyleColor(3);
         }

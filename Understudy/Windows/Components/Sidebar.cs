@@ -9,6 +9,7 @@ using Dalamud.Interface.Textures;
 using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Interface.Utility;
 using Dalamud.Bindings.ImGui;
+using Understudy.Models;
 
 namespace Understudy.Windows.Components;
 

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace Understudy;
+namespace Understudy.Models;
 
 [Serializable]
 public class CharacterData
@@ -30,7 +30,7 @@ public class RaidData
     public bool M2 { get; set; }
     public bool M3 { get; set; }
     public bool M4 { get; set; }
-    
+
     public DateTime LastUpdated { get; set; }
 }
 

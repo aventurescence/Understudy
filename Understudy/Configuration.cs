@@ -1,6 +1,7 @@
 ﻿using Dalamud.Configuration;
 using System;
 using System.Collections.Generic;
+using Understudy.Models;
 
 namespace Understudy;
 

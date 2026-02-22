@@ -2,18 +2,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Understudy.Models;
 
 namespace Understudy.Windows.Components;
 
 /// <summary>
 /// Renders BiS progress bar, slot-by-slot comparison, and acquisition cost summary.
 /// </summary>
-public class BiSComparisonView
+public class BiSComparison
 {
     private readonly Plugin plugin;
     private readonly MateriaDisplay materiaDisplay;
 
-    public BiSComparisonView(Plugin plugin, MateriaDisplay materiaDisplay)
+    public BiSComparison(Plugin plugin, MateriaDisplay materiaDisplay)
     {
         this.plugin = plugin;
         this.materiaDisplay = materiaDisplay;

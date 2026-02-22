@@ -6,6 +6,7 @@ using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Textures;
 using Dalamud.Bindings.ImGui;
+using Understudy.Models;
 
 namespace Understudy.Windows.Components;
 
@@ -27,7 +28,7 @@ public class CharacterDetail
         this.loadoutPopup = loadoutPopup;
 
         var materiaDisplay = new MateriaDisplay(plugin);
-        var bisView = new BiSComparisonView(plugin, materiaDisplay);
+        var bisView = new BiSComparison(plugin, materiaDisplay);
         loadoutCard = new LoadoutCard(plugin, bisView, materiaDisplay);
     }
 

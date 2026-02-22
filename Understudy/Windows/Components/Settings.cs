@@ -7,11 +7,11 @@ using System.Numerics;
 
 namespace Understudy.Windows.Components;
 
-public class SettingsView
+public class Settings
 {
     private readonly Plugin plugin;
 
-    public SettingsView(Plugin plugin)
+    public Settings(Plugin plugin)
     {
         this.plugin = plugin;
     }

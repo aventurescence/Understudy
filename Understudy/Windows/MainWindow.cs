@@ -6,6 +6,7 @@ using Dalamud.Interface.Colors;
 using Dalamud.Interface.Utility;
 using Dalamud.Bindings.ImGui;
 using Understudy.Managers;
+using Understudy.Models;
 using Understudy.Windows.Components;
 
 namespace Understudy.Windows;
@@ -17,7 +18,7 @@ public class MainWindow : Window, IDisposable
     private readonly LoadoutPopup loadoutPopup;
     private readonly Dashboard dashboard;
     private readonly CharacterDetail characterDetail;
-    private readonly SettingsView settingsView;
+    private readonly Settings settings;
     private enum ViewType { Dashboard, Character, Settings }
     private ViewType _currentView = ViewType.Dashboard;
     private ViewType currentView
@@ -38,7 +39,7 @@ public class MainWindow : Window, IDisposable
     {
         this.plugin = plugin;
         loadoutPopup = new LoadoutPopup(plugin);
-        settingsView = new SettingsView(plugin);
+        settings = new Settings(plugin);
         
         characterDetail = new CharacterDetail(plugin, 
             () => // On Back
@@ -121,7 +122,7 @@ public class MainWindow : Window, IDisposable
     /// </summary>
     public override void OnOpen()
     {
-        plugin.UpdateCharacterData();
+        plugin.CharacterTracker.UpdateCharacterData();
         RefreshSizeConstraints(); // Ensure constraints match scale on open
     }
     
@@ -154,7 +155,7 @@ public class MainWindow : Window, IDisposable
                 characterDetail.Draw();
                 break;
             case ViewType.Settings:
-                settingsView.Draw();
+                settings.Draw();
                 break;
         }
         

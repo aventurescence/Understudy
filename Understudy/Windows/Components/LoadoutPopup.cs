@@ -5,6 +5,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Utility;
 using Lumina.Excel.Sheets;
 using Action = System.Action;
+using Understudy;
 
 namespace Understudy.Windows.Components;
 
@@ -48,7 +49,7 @@ public class LoadoutPopup : IDisposable
 
         if (Plugin.ObjectTable.Length > 0 && Plugin.ObjectTable[0] is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter pc)
         {
-            shared.ManualJobId = plugin.IsJobExcluded(pc.ClassJob.RowId) ? 0u : pc.ClassJob.RowId;
+            shared.ManualJobId = plugin.CharacterTracker.IsJobExcluded(pc.ClassJob.RowId) ? 0u : pc.ClassJob.RowId;
         }
         else
         {
@@ -259,7 +260,7 @@ public class LoadoutPopup : IDisposable
                 foreach (var job in sheet)
                 {
                     if (job.RowId == 0 || job.Abbreviation.ExtractText().IsNullOrEmpty()) continue;
-                    if (plugin.IsJobExcluded(job.RowId)) continue;
+                    if (plugin.CharacterTracker.IsJobExcluded(job.RowId)) continue;
 
                     bool isSelected = shared.ManualJobId == job.RowId;
                     if (ImGui.Selectable(ToTitleCase(job.Name.ToString()), isSelected))

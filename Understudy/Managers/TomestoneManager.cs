@@ -1,6 +1,7 @@
 using System;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using Understudy.Models;
 
 namespace Understudy.Managers;
 

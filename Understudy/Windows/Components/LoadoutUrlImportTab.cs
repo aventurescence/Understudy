@@ -64,7 +64,7 @@ public class LoadoutUrlImportTab
         {
             if (shared.CurrentCharacterId.HasValue && plugin.Configuration.Characters.TryGetValue(shared.CurrentCharacterId.Value, out _))
             {
-                plugin.BiSManager.ImportFromUrl(importUrl, shared.ManualJobId, shared.CurrentCharacterId);
+                plugin.BiSImportManager.ImportFromUrl(importUrl, shared.ManualJobId, shared.CurrentCharacterId);
                 closePopup();
             }
         }
