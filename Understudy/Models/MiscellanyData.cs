@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Understudy;
+namespace Understudy.Models;
 
 /// <summary>
 /// Raid miscellany data: books per floor, upgrade materials, coffers.

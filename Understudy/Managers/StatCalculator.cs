@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Dalamud.Plugin.Services;
 using Lumina.Excel.Sheets;
+using Understudy.Models;
 
 namespace Understudy.Managers;
 

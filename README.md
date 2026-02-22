@@ -2,7 +2,6 @@
 
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/aventurescence/understudy/total)
 
-
 Your raid progression and currency tracker.
 
 ## Installation

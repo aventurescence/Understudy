@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Lumina.Excel.Sheets;
+using Understudy.Models;
 
 namespace Understudy.Windows.Components;
 
@@ -163,7 +164,7 @@ public class LoadoutManualBuilderTab : IDisposable
                 if (ImGui.Selectable($"{itemName}  (IL {il})##item{item.RowId}", isSelected))
                 {
                     selectedItemIndex = i;
-                    plugin.BiSManager.SetBiSItem(shared.ManualJobId, manualSlotId, item.RowId, itemName, il, null!, shared.CurrentCharacterId);
+                    plugin.BiSImportManager.SetBiSItem(shared.ManualJobId, manualSlotId, item.RowId, itemName, il, null!, shared.CurrentCharacterId);
                 }
                 if (isSelected) ImGui.SetItemDefaultFocus();
             }
@@ -252,7 +253,7 @@ public class LoadoutManualBuilderTab : IDisposable
         {
             if (ImGui.Selectable("None", currentFoodId == 0))
             {
-                plugin.BiSManager.SetBiSFood(shared.ManualJobId, 0, shared.CurrentCharacterId);
+                plugin.BiSImportManager.SetBiSFood(shared.ManualJobId, 0, shared.CurrentCharacterId);
             }
 
             foreach (var food in foodSearchResults)
@@ -263,7 +264,7 @@ public class LoadoutManualBuilderTab : IDisposable
 
                 if (ImGui.Selectable($"{name}  (IL {il})##food{food.RowId}", isSelected))
                 {
-                    plugin.BiSManager.SetBiSFood(shared.ManualJobId, food.RowId, shared.CurrentCharacterId);
+                    plugin.BiSImportManager.SetBiSFood(shared.ManualJobId, food.RowId, shared.CurrentCharacterId);
                 }
                 if (isSelected) ImGui.SetItemDefaultFocus();
             }
@@ -532,7 +533,7 @@ public class LoadoutManualBuilderTab : IDisposable
     {
         while (item.Materia.Count <= slotIndex) item.Materia.Add(0);
         item.Materia[slotIndex] = materiaId;
-        plugin.BiSManager.SetBiSItem(shared.ManualJobId, item.Slot, item.ItemId, item.Name, item.ItemLevel, item.Materia, shared.CurrentCharacterId);
+        plugin.BiSImportManager.SetBiSItem(shared.ManualJobId, item.Slot, item.ItemId, item.Name, item.ItemLevel, item.Materia, shared.CurrentCharacterId);
     }
 
     private static string ToRoman(int n) => n switch

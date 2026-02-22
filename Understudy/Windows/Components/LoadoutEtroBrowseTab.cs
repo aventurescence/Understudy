@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Interface;
 using Dalamud.Bindings.ImGui;
+using Understudy.Models;
 
 namespace Understudy.Windows.Components;
 
@@ -38,7 +39,7 @@ public class LoadoutEtroBrowseTab
         {
             try
             {
-                etroSets = await plugin.BiSManager.GetEtroSets(shared.ManualJobId);
+                etroSets = await plugin.EtroBrowseManager.GetEtroSets(shared.ManualJobId);
                 FilterEtroSets();
             }
             finally
@@ -225,8 +226,8 @@ public class LoadoutEtroBrowseTab
         ImGui.Spacing();
         ImGui.Indent(12);
 
-        plugin.BiSManager.FetchEtroGearsetDetail(set.id);
-        var detail = plugin.BiSManager.GetCachedGearsetDetail(set.id);
+        plugin.EtroBrowseManager.FetchEtroGearsetDetail(set.id);
+        var detail = plugin.EtroBrowseManager.GetCachedGearsetDetail(set.id);
 
         if (detail != null)
         {
@@ -288,7 +289,7 @@ public class LoadoutEtroBrowseTab
 
         if (ImGui.Button("Import This Loadout Target", new Vector2(240, 32)))
         {
-            plugin.BiSManager.ImportFromUrl($"https://etro.gg/gearset/{set.id}", shared.ManualJobId, shared.CurrentCharacterId);
+            plugin.BiSImportManager.ImportFromUrl($"https://etro.gg/gearset/{set.id}", shared.ManualJobId, shared.CurrentCharacterId);
             closePopup();
         }
         ImGui.PopStyleColor(4);

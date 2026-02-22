@@ -5,6 +5,7 @@ using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.Textures;
 using Dalamud.Bindings.ImGui;
+using Understudy.Models;
 
 namespace Understudy.Windows.Components;
 
@@ -15,10 +16,10 @@ namespace Understudy.Windows.Components;
 public class LoadoutCard
 {
     private readonly Plugin plugin;
-    private readonly BiSComparisonView bisView;
+    private readonly BiSComparison bisView;
     private readonly MateriaDisplay materiaDisplay;
 
-    public LoadoutCard(Plugin plugin, BiSComparisonView bisView, MateriaDisplay materiaDisplay)
+    public LoadoutCard(Plugin plugin, BiSComparison bisView, MateriaDisplay materiaDisplay)
     {
         this.plugin = plugin;
         this.bisView = bisView;
@@ -45,7 +46,7 @@ public class LoadoutCard
 
         if (bisData != null && bisData.Items.Count > 0)
         {
-            var result = plugin.BiSManager.Compare(jobId, characterId);
+            var result = plugin.BiSComparisonManager.Compare(jobId, characterId);
             comparisons = result.Comparisons;
             costs = result.Costs;
             ownedCount = comparisons.Count(c => c.IsOwned);

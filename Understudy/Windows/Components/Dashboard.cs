@@ -10,6 +10,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Textures;
 using Dalamud.Bindings.ImGui;
 using Lumina.Excel.Sheets;
+using Understudy.Models;
 
 namespace Understudy.Windows.Components;
 
