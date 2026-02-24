@@ -69,22 +69,30 @@ public unsafe class RaidManager
         if (playerState == null) return data;
         if (!raidIds.TryGetValue(targetRaids[0], out var m1CfcId)) return data;
 
-        // WeeklyLockoutInfo bitfield: M1=bit2, M2=bit4, M3=bit3, M4=bit5
-        var bitMapping = new int[] { 2, 4, 3, 5 };
+        // WeeklyLockoutInfo progress byte (Arcadion Savage):
+        // 0x0A (10) = M1 clear
+        // 0x14 (20) = M2 clear
+        // 0x1E (30) = M3 clear
+        // 0xFF (255) = M4 clear (All clear)
         var lockoutBase = (byte*)playerState + WeeklyRaidsOffset;
 
         bool ReadLockout(string raidName, int floorIndex)
         {
-            if (floorIndex < 0 || floorIndex >= bitMapping.Length) return false;
+            byte val = *lockoutBase;
+            bool cleared = false;
+            
+            if (val == 0xFF)
+            {
+                cleared = true;
+            }
+            else
+            {
+                int requiredVal = (floorIndex + 1) * 10;
+                cleared = val >= requiredVal;
+            }
 
-            int bitIndex = bitMapping[floorIndex];
-            int byteOffset = bitIndex / 8;
-            int bitOffset = bitIndex % 8;
-            byte val = *(lockoutBase + byteOffset);
-            bool cleared = (val & (1 << bitOffset)) != 0;
-
-            Plugin.Log.Debug("{Raid}: bitIdx={BitIndex} -> byte[{Byte}]=0x{Val:X2} bit{Bit}={Cleared}",
-                raidName, bitIndex, byteOffset, val, bitOffset, cleared);
+            Plugin.Log.Debug("{Raid}: floor={Floor} -> byte=0x{Val:X2} cleared={Cleared}",
+                raidName, floorIndex, val, cleared);
 
             return cleared;
         }

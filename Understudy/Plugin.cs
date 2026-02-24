@@ -23,6 +23,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
     [PluginService] internal static IPlayerState PlayerState { get; private set; } = null!;
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
+    [PluginService] internal static IDutyState DutyState { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
 
@@ -70,7 +71,7 @@ public sealed class Plugin : IDalamudPlugin
         EtroBrowseManager = new EtroBrowseManager(this, DataManager, Log);
         StatCalculator = new StatCalculator(DataManager, Log);
         MateriaTextures = new MateriaTextureManager(this);
-        CharacterTracker = new CharacterTracker(this, ClientState, ObjectTable, PlayerState, Framework, Log);
+        CharacterTracker = new CharacterTracker(this, ClientState, ObjectTable, PlayerState, Framework, DutyState, Log);
 
         ConfigWindow = new ConfigWindow(this);
         MainWindow = new MainWindow(this);
