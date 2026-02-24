@@ -38,17 +38,19 @@ public class CharacterTracker : IDisposable
         16, 17, 18
     };
 
-    public CharacterTracker(Plugin plugin, IClientState clientState, IObjectTable objectTable, IPlayerState playerState, IFramework framework, IPluginLog log)
+    public CharacterTracker(Plugin plugin, IClientState clientState, IObjectTable objectTable, IPlayerState playerState, IFramework framework, IDutyState dutyState, IPluginLog log)
     {
         this.plugin = plugin;
         this.clientState = clientState;
         this.objectTable = objectTable;
         this.playerState = playerState;
         this.framework = framework;
+        this.dutyState = dutyState;
         this.log = log;
 
         this.clientState.Login += OnLogin;
         this.clientState.Logout += OnLogout;
+        this.dutyState.DutyCompleted += OnDutyCompleted;
 
         if (this.clientState.IsLoggedIn)
         {
@@ -71,13 +73,27 @@ public class CharacterTracker : IDisposable
 
     private void OnLogin()
     {
+        if (playerState.ContentId == 0)
+        {
+            log.Debug("Login detected but ContentId is 0, delaying refresh...");
+            RunOnFramework(() => OnLogin());
+            return;
+        }
+
         CurrentContentId = playerState.ContentId;
+        log.Information($"Logged in as character {CurrentContentId}, updating data.");
         UpdateCharacterData();
     }
 
     private void OnLogout(int type, int code)
     {
         CurrentContentId = 0;
+    }
+
+    private void OnDutyCompleted(object? sender, ushort territoryId)
+    {
+        log.Information("Duty completed, refreshing character data.");
+        UpdateCharacterData();
     }
 
     public bool IsJobExcluded(uint jobId) => ExcludedJobs.Contains(jobId);
