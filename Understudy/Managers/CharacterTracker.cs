@@ -13,6 +13,7 @@ public class CharacterTracker : IDisposable
     private readonly IObjectTable objectTable;
     private readonly IPlayerState playerState;
     private readonly IFramework framework;
+    private readonly IDutyState dutyState;
     private readonly IPluginLog log;
 
     public ulong CurrentContentId { get; private set; }
@@ -210,5 +211,6 @@ public class CharacterTracker : IDisposable
     {
         clientState.Login -= OnLogin;
         clientState.Logout -= OnLogout;
+        dutyState.DutyCompleted -= OnDutyCompleted;
     }
 }

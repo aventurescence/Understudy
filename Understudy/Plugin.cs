@@ -26,7 +26,49 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDutyState DutyState { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
-// ... (lines 28-72 omitted for brevity in thought, but I'll use full lines in TargetContent)
+
+    private const string CommandName = "/understudy";
+
+    internal static TierDiscovery? TierDiscovery { get; private set; }
+
+    public Configuration Configuration { get; init; }
+    public TomestoneManager TomestoneManager { get; init; }
+    public GearManager GearManager { get; init; }
+    public RaidManager RaidManager { get; init; }
+    public MiscellanyManager MiscellanyManager { get; init; }
+    public BiSImportManager BiSImportManager { get; init; }
+    public BiSComparisonManager BiSComparisonManager { get; init; }
+    public EtroBrowseManager EtroBrowseManager { get; init; }
+    public StatCalculator StatCalculator { get; init; }
+    public MateriaTextureManager MateriaTextures { get; init; }
+    public CharacterTracker CharacterTracker { get; init; }
+
+    internal readonly HttpClient HttpClient = new();
+
+    public readonly WindowSystem WindowSystem = new("Understudy");
+    private ConfigWindow ConfigWindow { get; init; }
+    private MainWindow MainWindow { get; init; }
+
+    public Plugin()
+    {
+        Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+
+        if (Configuration.CharacterOrder.Count == 0 && Configuration.Characters.Count > 0)
+        {
+            Configuration.CharacterOrder.AddRange(Configuration.Characters.Keys);
+            Configuration.Save();
+        }
+
+        TierDiscovery = new TierDiscovery(DataManager, Log);
+        TierConfig.Initialize(TierDiscovery);
+
+        TomestoneManager = new TomestoneManager(DataManager);
+        GearManager = new GearManager(DataManager, ObjectTable);
+        RaidManager = new RaidManager(DataManager);
+        MiscellanyManager = new MiscellanyManager(DataManager, Log);
+        BiSImportManager = new BiSImportManager(this, DataManager, Log);
+        BiSComparisonManager = new BiSComparisonManager(this, DataManager, Log);
+        EtroBrowseManager = new EtroBrowseManager(this, DataManager, Log);
         StatCalculator = new StatCalculator(DataManager, Log);
         MateriaTextures = new MateriaTextureManager(this);
         CharacterTracker = new CharacterTracker(this, ClientState, ObjectTable, PlayerState, Framework, DutyState, Log);
