@@ -3,6 +3,7 @@ using Lumina.Excel.Sheets;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Understudy.Models;
 
@@ -15,6 +16,9 @@ public class EtroBrowseManager
     private readonly IPluginLog log;
 
     private readonly Dictionary<string, EtroGearsetDetail> cachedGearsetDetails = new();
+    private readonly HashSet<string> _inFlightDetailIds = new();
+    private readonly SemaphoreSlim _etroSemaphore = new(2, 2);
+    private Task? _foodMapLoadTask = null;
 
     private List<EtroBiSSet>? cachedEtroSets = null;
     private DateTime cachedEtroSetsTime = DateTime.MinValue;
@@ -58,10 +62,17 @@ public class EtroBrowseManager
     public void FetchEtroGearsetDetail(string id)
     {
         if (cachedGearsetDetails.ContainsKey(id)) return;
+        lock (_inFlightDetailIds)
+        {
+            if (_inFlightDetailIds.Contains(id)) return;
+            _inFlightDetailIds.Add(id);
+        }
         Task.Run(async () =>
         {
+            await _etroSemaphore.WaitAsync();
             try
             {
+                if (cachedGearsetDetails.ContainsKey(id)) return;
                 var response = await plugin.HttpClient.GetStringAsync($"https://etro.gg/api/gearsets/{id}");
                 var data = System.Text.Json.JsonSerializer.Deserialize<EtroResponse>(response);
                 if (data == null) return;
@@ -103,6 +114,11 @@ public class EtroBrowseManager
             catch (Exception ex)
             {
                 log.Error(ex, $"Failed to fetch Etro gearset detail for {id}");
+            }
+            finally
+            {
+                _etroSemaphore.Release();
+                lock (_inFlightDetailIds) { _inFlightDetailIds.Remove(id); }
             }
         });
     }
@@ -172,6 +188,19 @@ public class EtroBrowseManager
     private async Task EnsureEtroFoodMapLoaded()
     {
         if (cachedEtroFoodMap != null) return;
+
+        Task loadTask;
+        lock (_inFlightDetailIds)
+        {
+            if (_foodMapLoadTask == null)
+                _foodMapLoadTask = LoadFoodMapAsync();
+            loadTask = _foodMapLoadTask;
+        }
+        await loadTask;
+    }
+
+    private async Task LoadFoodMapAsync()
+    {
         var foodJson = await plugin.HttpClient.GetStringAsync("https://etro.gg/api/food/");
         var foodList = System.Text.Json.JsonSerializer.Deserialize<List<EtroFoodItem>>(foodJson);
         if (foodList != null)

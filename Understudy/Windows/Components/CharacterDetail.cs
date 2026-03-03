@@ -16,10 +16,12 @@ public class CharacterDetail
     private readonly Action onBackRequested;
     private readonly LoadoutPopup loadoutPopup;
     private readonly LoadoutCard loadoutCard;
+    private readonly UpgradePriority upgradePriority;
 
     private ulong? characterId;
 
     private uint? loadoutDragSourceJobId;
+    private uint? _scrollToJobId = null;
 
     public CharacterDetail(Plugin plugin, Action onBackRequested, LoadoutPopup loadoutPopup)
     {
@@ -29,7 +31,30 @@ public class CharacterDetail
 
         var materiaDisplay = new MateriaDisplay(plugin);
         var bisView = new BiSComparison(plugin, materiaDisplay);
-        loadoutCard = new LoadoutCard(plugin, bisView, materiaDisplay);
+        upgradePriority = new UpgradePriority(plugin.UpgradePriorityCalculator);
+        loadoutCard = new LoadoutCard(plugin, bisView, materiaDisplay, upgradePriority);
+
+        plugin.CharacterTracker.JobChanged += OnJobChanged;
+    }
+
+    public void Dispose()
+    {
+        plugin.CharacterTracker.JobChanged -= OnJobChanged;
+    }
+
+    private void OnJobChanged(uint newJobId)
+    {
+        if (characterId == null) return;
+        if (!plugin.Configuration.Characters.TryGetValue(characterId.Value, out var data)) return;
+
+        if (data.GearSets.ContainsKey(newJobId))
+        {
+            plugin.CharacterTracker.TrackCurrentGearset(characterId.Value);
+        }
+
+        bool jobHasLoadout = data.GearSets.ContainsKey(newJobId) || data.BisSets.ContainsKey(newJobId);
+        if (jobHasLoadout)
+            _scrollToJobId = newJobId;
     }
 
     public void SetCharacter(ulong id)
@@ -172,9 +197,17 @@ public class CharacterDetail
                 // Skip the dragged loadout so remaining cards reflow
                 if (loadoutDragSourceJobId.HasValue && loadoutDragSourceJobId.Value == jobId) continue;
 
+                if (_scrollToJobId.HasValue && _scrollToJobId.Value == jobId)
+                {
+                    ImGui.SetScrollHereY(0f);
+                    _scrollToJobId = null;
+                }
+
                 data.GearSets.TryGetValue(jobId, out var gearSet);
                 data.BisSets.TryGetValue(jobId, out var bisData);
-                loadoutCard.Draw(jobId, gearSet, bisData, ref jobToRemove, ref bisToRemove, ref dragSourceJob, ref dragTargetJob, characterId);
+
+                uint? activeJobId = plugin.CharacterTracker.CurrentJobId != 0 ? plugin.CharacterTracker.CurrentJobId : null;
+                loadoutCard.Draw(jobId, gearSet, bisData, ref jobToRemove, ref bisToRemove, ref dragSourceJob, ref dragTargetJob, characterId, activeJobId);
             }
 
             if (dragSourceJob.HasValue)

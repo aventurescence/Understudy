@@ -167,6 +167,7 @@ public class MainWindow : Window, IDisposable
 
     public void Dispose()
     {
+        characterDetail.Dispose();
         loadoutPopup.Dispose();
     }
 }

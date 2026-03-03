@@ -18,15 +18,17 @@ public class LoadoutCard
     private readonly Plugin plugin;
     private readonly BiSComparison bisView;
     private readonly MateriaDisplay materiaDisplay;
+    private readonly UpgradePriority upgradePriority;
 
-    public LoadoutCard(Plugin plugin, BiSComparison bisView, MateriaDisplay materiaDisplay)
+    public LoadoutCard(Plugin plugin, BiSComparison bisView, MateriaDisplay materiaDisplay, UpgradePriority upgradePriority)
     {
         this.plugin = plugin;
         this.bisView = bisView;
         this.materiaDisplay = materiaDisplay;
+        this.upgradePriority = upgradePriority;
     }
 
-    public void Draw(uint jobId, GearSetData? gearSet, BiSData? bisData, ref uint? jobToRemove, ref uint? bisToRemove, ref uint? dragSourceJob, ref uint? dragTargetJob, ulong? characterId = null)
+    public void Draw(uint jobId, GearSetData? gearSet, BiSData? bisData, ref uint? jobToRemove, ref uint? bisToRemove, ref uint? dragSourceJob, ref uint? dragTargetJob, ulong? characterId = null, uint? activeJobId = null)
     {
         var dl = ImGui.GetWindowDrawList();
         var jobAbbr = SharedDrawHelpers.GetJobAbbreviation(jobId);
@@ -125,6 +127,13 @@ public class LoadoutCard
             ? (ImDrawFlags.RoundCornersTopLeft | ImDrawFlags.RoundCornersTopRight)
             : ImDrawFlags.RoundCornersAll;
         dl.AddRectFilled(startPos, barEnd, ImGui.GetColorU32(barColor), rounding, flags);
+
+        bool isActiveJob = activeJobId.HasValue && activeJobId.Value == jobId;
+        if (isActiveJob)
+        {
+            dl.AddRectFilled(startPos, barEnd, ImGui.GetColorU32(Theme.AccentPrimary with { W = 0.15f }), rounding, flags);
+            dl.AddRect(startPos, barEnd, ImGui.GetColorU32(Theme.AccentPrimary with { W = 0.5f }), rounding, flags, 1.5f);
+        }
 
         dl.AddLine(
             startPos + new Vector2(0, 4),
@@ -238,6 +247,8 @@ public class LoadoutCard
                     bisView.DrawCompactCostSummary(costs);
                 if (bisData != null)
                     bisView.DrawStatSummary(bisData.Items, bisData.FoodId);
+                if (comparisons != null && bisData != null)
+                    upgradePriority.DrawForJob(comparisons, bisData, jobId);
             }
             else if (gearSet != null)
             {
