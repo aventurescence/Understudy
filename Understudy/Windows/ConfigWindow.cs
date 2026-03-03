@@ -2,6 +2,7 @@
 using System.Numerics;
 
 using Dalamud.Interface.Windowing;
+using Dalamud.Bindings.ImGui;
 using Understudy;
 
 namespace Understudy.Windows;
@@ -12,11 +13,8 @@ public class ConfigWindow : Window, IDisposable
 
     public ConfigWindow(Plugin plugin) : base("Understudy — Settings###UnderstudyConfig")
     {
-        Flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
-                ImGuiWindowFlags.NoScrollWithMouse;
-
-        Size = new Vector2(280, 110);
-        SizeCondition = ImGuiCond.Always;
+        Flags = ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
+                ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.AlwaysAutoResize;
 
         configuration = plugin.Configuration;
     }
@@ -49,6 +47,51 @@ public class ConfigWindow : Window, IDisposable
 
     public override void Draw()
     {
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
+
+        ImGui.TextColored(Theme.TextSecondary, "General Settings");
+        ImGui.Separator();
+
+        var compactMode = configuration.CompactMode;
+        if (ImGui.Checkbox("Compact Mode", ref compactMode))
+        {
+            configuration.CompactMode = compactMode;
+            configuration.Save();
+        }
+
+        var showJobCategory = configuration.ShowJobCategoryInDashboard;
+        if (ImGui.Checkbox("Show Job Category in Dashboard", ref showJobCategory))
+        {
+            configuration.ShowJobCategoryInDashboard = showJobCategory;
+            configuration.Save();
+        }
+
+        var showInDuty = configuration.ShowInDuty;
+        if (ImGui.Checkbox("Show Plugin in Duty", ref showInDuty))
+        {
+            configuration.ShowInDuty = showInDuty;
+            configuration.Save();
+        }
+
+        var reorderUnlocked = configuration.ReorderUnlocked;
+        if (ImGui.Checkbox("Unlock Character Reordering", ref reorderUnlocked))
+        {
+            configuration.ReorderUnlocked = reorderUnlocked;
+            configuration.Save();
+        }
+
+        ImGui.Dummy(new Vector2(0, 5));
+        ImGui.TextColored(Theme.TextSecondary, "UI & Layout");
+        ImGui.Separator();
+
+        var dashboardFrameOpacity = configuration.DashboardFrameOpacity;
+        ImGui.SetNextItemWidth(150f);
+        if (ImGui.SliderFloat("Dashboard Background Opacity", ref dashboardFrameOpacity, 0.0f, 1.0f, "%.2f"))
+        {
+            configuration.DashboardFrameOpacity = dashboardFrameOpacity;
+            configuration.Save();
+        }
+
         var movable = configuration.IsConfigWindowMovable;
         if (ImGui.Checkbox("Movable Config Window", ref movable))
         {
@@ -56,11 +99,17 @@ public class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
-        var showInDuty = configuration.ShowInDuty;
-        if (ImGui.Checkbox("Show in Duty", ref showInDuty))
+        ImGui.Dummy(new Vector2(0, 5));
+        ImGui.TextColored(Theme.TextSecondary, "Advanced");
+        ImGui.Separator();
+
+        var verboseLogging = configuration.VerboseLogging;
+        if (ImGui.Checkbox("Verbose Logging", ref verboseLogging))
         {
-            configuration.ShowInDuty = showInDuty;
+            configuration.VerboseLogging = verboseLogging;
             configuration.Save();
         }
+
+        ImGui.PopStyleVar();
     }
 }

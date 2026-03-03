@@ -58,6 +58,25 @@ public class Settings
             plugin.Configuration.CompactMode = compactMode;
             plugin.Configuration.Save();
         }
+
+        ImGuiHelpers.ScaledDummy(5f);
+
+        bool showInDuty = plugin.Configuration.ShowInDuty;
+        if (ImGui.Checkbox("Show Plugin in Duty", ref showInDuty))
+        {
+            plugin.Configuration.ShowInDuty = showInDuty;
+            plugin.Configuration.Save();
+        }
+
+        ImGuiHelpers.ScaledDummy(5f);
+
+        bool reorderUnlocked = plugin.Configuration.ReorderUnlocked;
+        if (ImGui.Checkbox("Unlock Character Reordering", ref reorderUnlocked))
+        {
+            plugin.Configuration.ReorderUnlocked = reorderUnlocked;
+            plugin.Configuration.Save();
+        }
+
         ImGui.Unindent(12f);
     }
 
