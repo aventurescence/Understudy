@@ -42,6 +42,7 @@ public sealed class Plugin : IDalamudPlugin
     public StatCalculator StatCalculator { get; init; }
     public MateriaTextureManager MateriaTextures { get; init; }
     public CharacterTracker CharacterTracker { get; init; }
+    public UpgradePriorityCalculator UpgradePriorityCalculator { get; init; }
 
     internal readonly HttpClient HttpClient = new();
 
@@ -70,6 +71,7 @@ public sealed class Plugin : IDalamudPlugin
         BiSComparisonManager = new BiSComparisonManager(this, DataManager, Log);
         EtroBrowseManager = new EtroBrowseManager(this, DataManager, Log);
         StatCalculator = new StatCalculator(DataManager, Log);
+        UpgradePriorityCalculator = new UpgradePriorityCalculator(StatCalculator, DataManager);
         MateriaTextures = new MateriaTextureManager(this);
         CharacterTracker = new CharacterTracker(this, ClientState, ObjectTable, PlayerState, Framework, DutyState, Log);
 
