@@ -47,7 +47,6 @@ public sealed class Plugin : IDalamudPlugin
     internal readonly HttpClient HttpClient = new();
 
     public readonly WindowSystem WindowSystem = new("Understudy");
-    private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
 
     public Plugin()
@@ -75,10 +74,8 @@ public sealed class Plugin : IDalamudPlugin
         MateriaTextures = new MateriaTextureManager(this);
         CharacterTracker = new CharacterTracker(this, ClientState, ObjectTable, PlayerState, Framework, DutyState, Log);
 
-        ConfigWindow = new ConfigWindow(this);
         MainWindow = new MainWindow(this);
 
-        WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
@@ -101,8 +98,6 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
         
         WindowSystem.RemoveAllWindows();
-
-        ConfigWindow.Dispose();
         MainWindow.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
@@ -117,6 +112,6 @@ public sealed class Plugin : IDalamudPlugin
         MainWindow.Toggle();
     }
     
-    public void ToggleConfigUi() => ConfigWindow.Toggle();
+    public void ToggleConfigUi() => MainWindow.OpenSettings();
     public void ToggleMainUi() => MainWindow.Toggle();
 }

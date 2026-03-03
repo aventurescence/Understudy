@@ -125,6 +125,15 @@ public class MainWindow : Window, IDisposable
         plugin.CharacterTracker.UpdateCharacterData();
         RefreshSizeConstraints(); // Ensure constraints match scale on open
     }
+
+    /// <summary>
+    /// Forces the window to open directly to the Settings tab.
+    /// </summary>
+    public void OpenSettings()
+    {
+        currentView = ViewType.Settings;
+        IsOpen = true;
+    }
     
     public override void Draw()
     {
