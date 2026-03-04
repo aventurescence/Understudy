@@ -78,7 +78,7 @@ public class Dashboard
         var availHeight = ImGui.GetContentRegionAvail().Y;
         var cardWidth = 320f * ImGui.GetIO().FontGlobalScale;
         var scale = ImGui.GetIO().FontGlobalScale;
-        var cardHeight = 170f * scale;
+        var cardHeight = (plugin.Configuration.CompactMode ? 120f : 170f) * scale;
         float spacing = 16f;
 
         int maxCols = Math.Max(1, (int)((availWidth + spacing) / (cardWidth + spacing)));
@@ -260,7 +260,7 @@ public class Dashboard
     private void DrawCharacterCard(ulong id, CharacterData data, float width, int orderIndex)
     {
         var scale = ImGui.GetIO().FontGlobalScale;
-        var height = 170f * scale;
+        var height = (plugin.Configuration.CompactMode ? 120f : 170f) * scale;
         var dl = ImGui.GetWindowDrawList();
         var startPos = ImGui.GetCursorScreenPos();
         var cardEnd = startPos + new Vector2(width, height);
@@ -316,6 +316,22 @@ public class Dashboard
         dl.AddRect(worldPillMin, worldPillMax, ImGui.GetColorU32(Theme.BorderSubtle with { W = 0.5f }), 8f);
         dl.AddText(worldPillMin + new Vector2(6, 2), ImGui.GetColorU32(Theme.TextDisabled), worldName);
 
+        if (plugin.Configuration.ShowJobCategoryInDashboard)
+        {
+            var bestJob = data.GearSets.Values.OrderByDescending(g => g.AverageItemLevel).FirstOrDefault();
+            if (bestJob != null)
+            {
+                var jobAbbr = SharedDrawHelpers.GetJobAbbreviation(bestJob.JobId);
+                var jobSize = ImGui.CalcTextSize(jobAbbr);
+                var jobPillMin = new Vector2(worldPillMin.X - jobSize.X - 20, y + 2);
+                var jobPillMax = jobPillMin + jobSize + new Vector2(12, 4);
+                
+                dl.AddRectFilled(jobPillMin, jobPillMax, ImGui.GetColorU32(Theme.JobBadgeBg), 8f);
+                dl.AddRect(jobPillMin, jobPillMax, ImGui.GetColorU32(Theme.AccentPrimary with { W = 0.5f }), 8f);
+                dl.AddText(jobPillMin + new Vector2(6, 2), ImGui.GetColorU32(Theme.TextPrimary), jobAbbr);
+            }
+        }
+
         y += ImGui.GetFontSize() * 1.2f + 8;
 
         dl.AddLine(new Vector2(x, y), new Vector2(x + innerWidth, y),
@@ -323,29 +339,36 @@ public class Dashboard
         y += 6;
 
         // ── Weekly Tomestones ──
-        var tomes = data.Tomestones;
-        float ratio = tomes.MnemonicsWeeklyCap > 0 ? (float)tomes.MnemonicsWeekly / tomes.MnemonicsWeeklyCap : 0f;
-        dl.AddText(new Vector2(x, y), ImGui.GetColorU32(Theme.TextPrimary), "Weekly Tomestones");
-        y += ImGui.GetTextLineHeight() + 4;
+        if (!plugin.Configuration.CompactMode)
+        {
+            var tomes = data.Tomestones;
+            float ratio = tomes.MnemonicsWeeklyCap > 0 ? (float)tomes.MnemonicsWeekly / tomes.MnemonicsWeeklyCap : 0f;
+            dl.AddText(new Vector2(x, y), ImGui.GetColorU32(Theme.TextPrimary), "Weekly Tomestones");
+            y += ImGui.GetTextLineHeight() + 4;
 
-        float barHeight = 14f;
-        float barWidth = innerWidth;
-        var barMin = new Vector2(x, y);
-        var barMax = new Vector2(x + barWidth, y + barHeight);
-        dl.AddRectFilled(barMin, barMax, ImGui.GetColorU32(Theme.BgDark), barHeight * 0.5f);
+            float barHeight = 14f;
+            float barWidth = innerWidth;
+            var barMin = new Vector2(x, y);
+            var barMax = new Vector2(x + barWidth, y + barHeight);
+            dl.AddRectFilled(barMin, barMax, ImGui.GetColorU32(Theme.BgDark), barHeight * 0.5f);
 
-        float fillWidth = Math.Max(barHeight, barWidth * Math.Clamp(ratio, 0f, 1f));
-        var fillColor = Theme.ProgressColor(ratio);
-        dl.AddRectFilled(barMin, new Vector2(barMin.X + fillWidth, barMax.Y),
-            ImGui.GetColorU32(fillColor), barHeight * 0.5f);
+            float fillWidth = Math.Max(barHeight, barWidth * Math.Clamp(ratio, 0f, 1f));
+            var fillColor = Theme.ProgressColor(ratio);
+            dl.AddRectFilled(barMin, new Vector2(barMin.X + fillWidth, barMax.Y),
+                ImGui.GetColorU32(fillColor), barHeight * 0.5f);
 
-        var barText = $"{tomes.MnemonicsWeekly} / {tomes.MnemonicsWeeklyCap}";
-        var barTextSize = ImGui.CalcTextSize(barText);
-        dl.AddText(
-            barMin + new Vector2((barWidth - barTextSize.X) * 0.5f, (barHeight - barTextSize.Y) * 0.5f),
-            ImGui.GetColorU32(Theme.TextPrimary), barText);
+            var barText = $"{tomes.MnemonicsWeekly} / {tomes.MnemonicsWeeklyCap}";
+            var barTextSize = ImGui.CalcTextSize(barText);
+            dl.AddText(
+                barMin + new Vector2((barWidth - barTextSize.X) * 0.5f, (barHeight - barTextSize.Y) * 0.5f),
+                ImGui.GetColorU32(Theme.TextPrimary), barText);
 
-        y += barHeight + 10;
+            y += barHeight + 10;
+        }
+        else
+        {
+            y += 10;
+        }
 
         // ── Raid Status + Max IL row ──
         dl.AddText(new Vector2(x, y), ImGui.GetColorU32(Theme.TextSecondary), "Raid Status");
@@ -400,9 +423,9 @@ public class Dashboard
         var tex = Plugin.TextureProvider.GetFromGame(texPath);
         if (!tex.TryGetWrap(out var wrap, out _)) return;
 
-        var padX = 40f;
-        var padY = 24f;
-        var padBottom = 8f;
+        var padX = width * (40f / 320f);
+        var padY = height * (24f / 170f);
+        var padBottom = height * (8f / 170f);
         var frameMin = pos - new Vector2(padX, padY);
         var frameMax = pos + new Vector2(width + padX, height + padBottom);
         var frameTint = ImGui.GetColorU32(new Vector4(1.0f, 1.0f, 1.0f, opacity));

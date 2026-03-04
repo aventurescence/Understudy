@@ -297,83 +297,8 @@ public class CharacterDetail
             }
         });
 
-        // ── Character Settings Card ──────────────────────────────
-        DrawCard("CHARACTER SETTINGS", () =>
-        {
-            DrawCharacterFrameSettings(data);
-        });
-
         ImGui.Unindent(12f);
     }
-
-    private void DrawCharacterFrameSettings(CharacterData data)
-    {
-        ImGui.TextColored(Theme.AccentSecondary, "Card Frame Overlay");
-        ImGui.Spacing();
-
-        var charaCardDecorationSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.CharaCardDecoration>();
-
-        uint currentFrame = data.FrameImageId;
-        string previewLabel = currentFrame == 0 ? "Use Global Default" : $"# {currentFrame}";
-
-        if (currentFrame != 0 && charaCardDecorationSheet != null)
-        {
-            foreach (var dec in charaCardDecorationSheet)
-            {
-                if ((uint)dec.Image == currentFrame)
-                {
-                    previewLabel = dec.Name.ToString();
-                    break;
-                }
-            }
-        }
-
-        ImGui.SetNextItemWidth(280f);
-        if (ImGui.BeginCombo("Frame", previewLabel))
-        {
-            if (ImGui.Selectable("Use Global Default", currentFrame == 0))
-            {
-                data.FrameImageId = 0;
-                plugin.Configuration.Save();
-            }
-
-            if (charaCardDecorationSheet != null)
-            {
-                foreach (var decoration in charaCardDecorationSheet)
-                {
-                    var name = decoration.Name.ToString();
-                    if (string.IsNullOrEmpty(name)) continue;
-
-                    uint imageId = (uint)decoration.Image;
-                    if (!IsValidFrameId(imageId)) continue;
-
-                    if (ImGui.Selectable(name, currentFrame == imageId))
-                    {
-                        data.FrameImageId = imageId;
-                        plugin.Configuration.Save();
-                    }
-                }
-            }
-            ImGui.EndCombo();
-        }
-
-        if (data.FrameImageId != 0)
-        {
-            float opacity = data.FrameOpacity;
-            ImGui.SetNextItemWidth(280f);
-            if (ImGui.SliderFloat("Frame Opacity", ref opacity, 0f, 1f))
-            {
-                data.FrameOpacity = opacity;
-                plugin.Configuration.Save();
-            }
-        }
-    }
-
-    private static bool IsValidFrameId(uint id) =>
-        (id >= 198001 && id <= 198022) ||
-        (id >= 198654 && id <= 198673) ||
-        (id >= 198701 && id <= 198726) ||
-        id == 198901 || id == 198902;
 
     // ── Card container with background, accent border and inner margins ──
     private void DrawCard(string title, Action content, Action? headerAction = null)

@@ -34,6 +34,9 @@
 
   <ItemGroup>
     <Content Include="Assets\Understudy1.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Understudy2.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Understudy3.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\aventurescence.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\understudy.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

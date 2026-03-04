@@ -19,6 +19,7 @@ public class Sidebar
     private readonly Action<ulong?> onSelectionChanged;
     private readonly Action onConfigRequested;
     private ulong? selectedContentId;
+    private bool isSettingsSelected;
     private readonly ISharedImmediateTexture? logoTexture;
 
     private ulong? dragSourceId;
@@ -42,9 +43,10 @@ public class Sidebar
         }
     }
 
-    public void UpdateSelection(ulong? contentId)
+    public void UpdateSelection(ulong? contentId, bool isSettings = false)
     {
         selectedContentId = contentId;
+        isSettingsSelected = isSettings;
     }
 
     public void Draw()
@@ -80,7 +82,7 @@ public class Sidebar
         ImGui.Spacing();
         ImGui.Spacing();
 
-        DrawSidebarItem(null, "Dashboard", FontAwesomeIcon.ChartLine, selectedContentId == null);
+        DrawSidebarItem(null, "Dashboard", FontAwesomeIcon.ChartLine, selectedContentId == null && !isSettingsSelected);
 
         ImGui.Spacing();
         ImGui.Spacing();
@@ -220,7 +222,7 @@ public class Sidebar
                 1.0f);
             ImGui.Spacing();
 
-            DrawSidebarItem(99999, "Settings", FontAwesomeIcon.Cog, false, null, true);
+            DrawSidebarItem(99999, "Settings", FontAwesomeIcon.Cog, isSettingsSelected, null, true);
         }
     }
 

@@ -48,6 +48,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public readonly WindowSystem WindowSystem = new("Understudy");
     private MainWindow MainWindow { get; init; }
+    public ChangelogWindow ChangelogWindow { get; init; }
 
     public Plugin()
     {
@@ -75,8 +76,18 @@ public sealed class Plugin : IDalamudPlugin
         CharacterTracker = new CharacterTracker(this, ClientState, ObjectTable, PlayerState, Framework, DutyState, Log);
 
         MainWindow = new MainWindow(this);
+        ChangelogWindow = new ChangelogWindow(this);
 
         WindowSystem.AddWindow(MainWindow);
+        WindowSystem.AddWindow(ChangelogWindow);
+
+        var currentVersion = GetType().Assembly.GetName().Version?.ToString(3) ?? "1.0";
+        if (Configuration.LastChangelogVersion != currentVersion)
+        {
+            Configuration.LastChangelogVersion = currentVersion;
+            Configuration.Save();
+            ChangelogWindow.IsOpen = true;
+        }
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -99,6 +110,7 @@ public sealed class Plugin : IDalamudPlugin
         
         WindowSystem.RemoveAllWindows();
         MainWindow.Dispose();
+        ChangelogWindow.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
         
