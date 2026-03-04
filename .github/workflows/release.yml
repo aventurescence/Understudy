@@ -67,7 +67,7 @@ jobs:
         } else {
           $latestTag = git describe --tags --abbrev=0 2>$null
           if ($latestTag) {
-            $content = git log "${latestTag}..HEAD" --pretty=format:"- %s"
+            $content = git log "${latestTag}..HEAD" --pretty=format:"### %s%n%n%b"
           } else {
             $content = "Initial release"
           }
@@ -125,8 +125,8 @@ jobs:
         files: Understudy/bin/Release/Understudy/latest.zip
         name: ${{ steps.version.outputs.tag }}
         tag_name: ${{ steps.version.outputs.tag }}
+        generate_release_notes: true
         body: |
-          ### Changes in ${{ steps.version.outputs.tag }}
           ${{ steps.changelog.outputs.content }}
           
           ---
