@@ -1,0 +1,27 @@
+{
+  "Author": "Churin",
+  "Name": "Understudy",
+  "InternalName": "Understudy",
+  "RepoUrl": "https://github.com/aventurescence/Understudy",
+  "Description": "Tracks weekly raid lockout, tomestones, gear, and other miscellaneous things.",
+  "ApplicableVersion": "any",
+  "DalamudApiLevel": 14,
+  "TestingDalamudApiLevel": 14,
+  "Tags": [
+    "raid",
+    "tomestones",
+    "gear",
+    "tracking"
+  ],
+  "CategoryTags": [
+    "raid"
+  ],
+  "LoadRequiredState": 0,
+  "LoadSync": false,
+  "CanUnloadAsync": false,
+  "LoadPriority": 0,
+  "IsTestingExclusive": false,
+  "IconUrl": "https://raw.githubusercontent.com/aventurescence/churinplugins/main/icon.png",
+  "Punchline": "Your raid progression and currency tracker.",
+  "AcceptsFeedback": true
+}
