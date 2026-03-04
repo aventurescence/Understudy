@@ -16,10 +16,12 @@ public class CharacterDetail
     private readonly Action onBackRequested;
     private readonly LoadoutPopup loadoutPopup;
     private readonly LoadoutCard loadoutCard;
+    private readonly UpgradePriority upgradePriority;
 
     private ulong? characterId;
 
     private uint? loadoutDragSourceJobId;
+    private uint? _scrollToJobId = null;
 
     public CharacterDetail(Plugin plugin, Action onBackRequested, LoadoutPopup loadoutPopup)
     {
@@ -29,7 +31,30 @@ public class CharacterDetail
 
         var materiaDisplay = new MateriaDisplay(plugin);
         var bisView = new BiSComparison(plugin, materiaDisplay);
-        loadoutCard = new LoadoutCard(plugin, bisView, materiaDisplay);
+        upgradePriority = new UpgradePriority(plugin.UpgradePriorityCalculator);
+        loadoutCard = new LoadoutCard(plugin, bisView, materiaDisplay, upgradePriority);
+
+        plugin.CharacterTracker.JobChanged += OnJobChanged;
+    }
+
+    public void Dispose()
+    {
+        plugin.CharacterTracker.JobChanged -= OnJobChanged;
+    }
+
+    private void OnJobChanged(uint newJobId)
+    {
+        if (characterId == null) return;
+        if (!plugin.Configuration.Characters.TryGetValue(characterId.Value, out var data)) return;
+
+        if (data.GearSets.ContainsKey(newJobId))
+        {
+            plugin.CharacterTracker.TrackCurrentGearset(characterId.Value);
+        }
+
+        bool jobHasLoadout = data.GearSets.ContainsKey(newJobId) || data.BisSets.ContainsKey(newJobId);
+        if (jobHasLoadout)
+            _scrollToJobId = newJobId;
     }
 
     public void SetCharacter(ulong id)
@@ -172,9 +197,17 @@ public class CharacterDetail
                 // Skip the dragged loadout so remaining cards reflow
                 if (loadoutDragSourceJobId.HasValue && loadoutDragSourceJobId.Value == jobId) continue;
 
+                if (_scrollToJobId.HasValue && _scrollToJobId.Value == jobId)
+                {
+                    ImGui.SetScrollHereY(0f);
+                    _scrollToJobId = null;
+                }
+
                 data.GearSets.TryGetValue(jobId, out var gearSet);
                 data.BisSets.TryGetValue(jobId, out var bisData);
-                loadoutCard.Draw(jobId, gearSet, bisData, ref jobToRemove, ref bisToRemove, ref dragSourceJob, ref dragTargetJob, characterId);
+
+                uint? activeJobId = plugin.CharacterTracker.CurrentJobId != 0 ? plugin.CharacterTracker.CurrentJobId : null;
+                loadoutCard.Draw(jobId, gearSet, bisData, ref jobToRemove, ref bisToRemove, ref dragSourceJob, ref dragTargetJob, characterId, activeJobId);
             }
 
             if (dragSourceJob.HasValue)
@@ -264,83 +297,8 @@ public class CharacterDetail
             }
         });
 
-        // ── Character Settings Card ──────────────────────────────
-        DrawCard("CHARACTER SETTINGS", () =>
-        {
-            DrawCharacterFrameSettings(data);
-        });
-
         ImGui.Unindent(12f);
     }
-
-    private void DrawCharacterFrameSettings(CharacterData data)
-    {
-        ImGui.TextColored(Theme.AccentSecondary, "Card Frame Overlay");
-        ImGui.Spacing();
-
-        var charaCardDecorationSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.CharaCardDecoration>();
-
-        uint currentFrame = data.FrameImageId;
-        string previewLabel = currentFrame == 0 ? "Use Global Default" : $"# {currentFrame}";
-
-        if (currentFrame != 0 && charaCardDecorationSheet != null)
-        {
-            foreach (var dec in charaCardDecorationSheet)
-            {
-                if ((uint)dec.Image == currentFrame)
-                {
-                    previewLabel = dec.Name.ToString();
-                    break;
-                }
-            }
-        }
-
-        ImGui.SetNextItemWidth(280f);
-        if (ImGui.BeginCombo("Frame", previewLabel))
-        {
-            if (ImGui.Selectable("Use Global Default", currentFrame == 0))
-            {
-                data.FrameImageId = 0;
-                plugin.Configuration.Save();
-            }
-
-            if (charaCardDecorationSheet != null)
-            {
-                foreach (var decoration in charaCardDecorationSheet)
-                {
-                    var name = decoration.Name.ToString();
-                    if (string.IsNullOrEmpty(name)) continue;
-
-                    uint imageId = (uint)decoration.Image;
-                    if (!IsValidFrameId(imageId)) continue;
-
-                    if (ImGui.Selectable(name, currentFrame == imageId))
-                    {
-                        data.FrameImageId = imageId;
-                        plugin.Configuration.Save();
-                    }
-                }
-            }
-            ImGui.EndCombo();
-        }
-
-        if (data.FrameImageId != 0)
-        {
-            float opacity = data.FrameOpacity;
-            ImGui.SetNextItemWidth(280f);
-            if (ImGui.SliderFloat("Frame Opacity", ref opacity, 0f, 1f))
-            {
-                data.FrameOpacity = opacity;
-                plugin.Configuration.Save();
-            }
-        }
-    }
-
-    private static bool IsValidFrameId(uint id) =>
-        (id >= 198001 && id <= 198022) ||
-        (id >= 198654 && id <= 198673) ||
-        (id >= 198701 && id <= 198726) ||
-        id == 198901 || id == 198902;
 
     // ── Card container with background, accent border and inner margins ──
     private void DrawCard(string title, Action content, Action? headerAction = null)

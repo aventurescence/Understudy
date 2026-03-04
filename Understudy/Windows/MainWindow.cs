@@ -35,7 +35,7 @@ public class MainWindow : Window, IDisposable
     }
     private ulong? selectedCharacterId;
 
-    public MainWindow(Plugin plugin) : base("Understudy")
+    public MainWindow(Plugin plugin) : base($"Understudy v{plugin.GetType().Assembly.GetName().Version?.ToString(3)}")
     {
         this.plugin = plugin;
         loadoutPopup = new LoadoutPopup(plugin);
@@ -46,7 +46,7 @@ public class MainWindow : Window, IDisposable
             {
                 currentView = ViewType.Dashboard;
                 selectedCharacterId = null;
-                sidebar?.UpdateSelection(null);
+                sidebar?.UpdateSelection(null, false);
                 plugin.Configuration.Save();
             },
             loadoutPopup
@@ -57,7 +57,7 @@ public class MainWindow : Window, IDisposable
             {
                 selectedCharacterId = id;
                 currentView = ViewType.Character;
-                sidebar?.UpdateSelection(id);
+                sidebar?.UpdateSelection(id, false);
                 characterDetail.SetCharacter(id);
             }
         );
@@ -65,7 +65,7 @@ public class MainWindow : Window, IDisposable
         {
             selectedCharacterId = null;
             currentView = ViewType.Dashboard;
-            sidebar?.UpdateSelection(null);
+            sidebar?.UpdateSelection(null, false);
         };
         
         sidebar = new Sidebar(plugin, 
@@ -76,18 +76,20 @@ public class MainWindow : Window, IDisposable
                     selectedCharacterId = id;
                     currentView = ViewType.Character;
                     characterDetail.SetCharacter(id.Value);
+                    sidebar?.UpdateSelection(id, false);
                 }
                 else
                 {
                     selectedCharacterId = null;
                     currentView = ViewType.Dashboard;
+                    sidebar?.UpdateSelection(null, false);
                 }
             },
             () => // On Settings/Config Requested
             {
                 currentView = ViewType.Settings;
                 selectedCharacterId = null; 
-                sidebar?.UpdateSelection(null); // Clear character selection visual
+                sidebar?.UpdateSelection(null, true); // Clear character selection visual
             }
         );
 
@@ -124,6 +126,16 @@ public class MainWindow : Window, IDisposable
     {
         plugin.CharacterTracker.UpdateCharacterData();
         RefreshSizeConstraints(); // Ensure constraints match scale on open
+    }
+
+    /// <summary>
+    /// Forces the window to open directly to the Settings tab.
+    /// </summary>
+    public void OpenSettings()
+    {
+        currentView = ViewType.Settings;
+        sidebar?.UpdateSelection(null, true);
+        IsOpen = true;
     }
     
     public override void Draw()
@@ -167,6 +179,7 @@ public class MainWindow : Window, IDisposable
 
     public void Dispose()
     {
+        characterDetail.Dispose();
         loadoutPopup.Dispose();
     }
 }

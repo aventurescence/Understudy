@@ -42,12 +42,13 @@ public sealed class Plugin : IDalamudPlugin
     public StatCalculator StatCalculator { get; init; }
     public MateriaTextureManager MateriaTextures { get; init; }
     public CharacterTracker CharacterTracker { get; init; }
+    public UpgradePriorityCalculator UpgradePriorityCalculator { get; init; }
 
     internal readonly HttpClient HttpClient = new();
 
     public readonly WindowSystem WindowSystem = new("Understudy");
-    private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
+    public ChangelogWindow ChangelogWindow { get; init; }
 
     public Plugin()
     {
@@ -70,14 +71,23 @@ public sealed class Plugin : IDalamudPlugin
         BiSComparisonManager = new BiSComparisonManager(this, DataManager, Log);
         EtroBrowseManager = new EtroBrowseManager(this, DataManager, Log);
         StatCalculator = new StatCalculator(DataManager, Log);
+        UpgradePriorityCalculator = new UpgradePriorityCalculator(StatCalculator, DataManager);
         MateriaTextures = new MateriaTextureManager(this);
         CharacterTracker = new CharacterTracker(this, ClientState, ObjectTable, PlayerState, Framework, DutyState, Log);
 
-        ConfigWindow = new ConfigWindow(this);
         MainWindow = new MainWindow(this);
+        ChangelogWindow = new ChangelogWindow(this);
 
-        WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
+        WindowSystem.AddWindow(ChangelogWindow);
+
+        var currentVersion = GetType().Assembly.GetName().Version?.ToString(3) ?? "1.0";
+        if (Configuration.LastChangelogVersion != currentVersion)
+        {
+            Configuration.LastChangelogVersion = currentVersion;
+            Configuration.Save();
+            ChangelogWindow.IsOpen = true;
+        }
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -99,9 +109,8 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
         
         WindowSystem.RemoveAllWindows();
-
-        ConfigWindow.Dispose();
         MainWindow.Dispose();
+        ChangelogWindow.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
         
@@ -115,6 +124,6 @@ public sealed class Plugin : IDalamudPlugin
         MainWindow.Toggle();
     }
     
-    public void ToggleConfigUi() => ConfigWindow.Toggle();
+    public void ToggleConfigUi() => MainWindow.OpenSettings();
     public void ToggleMainUi() => MainWindow.Toggle();
 }

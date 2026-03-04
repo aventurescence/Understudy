@@ -17,6 +17,9 @@ public class CharacterTracker : IDisposable
     private readonly IPluginLog log;
 
     public ulong CurrentContentId { get; private set; }
+    public uint CurrentJobId { get; private set; }
+    public event Action<uint>? JobChanged;
+    private bool _jobWatchActive = false;
 
     private static readonly HashSet<uint> ExcludedJobs = new()
     {
@@ -84,11 +87,30 @@ public class CharacterTracker : IDisposable
         CurrentContentId = playerState.ContentId;
         log.Information($"Logged in as character {CurrentContentId}, updating data.");
         UpdateCharacterData();
+
+        if (!_jobWatchActive)
+        {
+            _jobWatchActive = true;
+            framework.Update += OnJobWatchUpdate;
+        }
     }
 
     private void OnLogout(int type, int code)
     {
         CurrentContentId = 0;
+        CurrentJobId = 0;
+        _jobWatchActive = false;
+        framework.Update -= OnJobWatchUpdate;
+    }
+
+    private void OnJobWatchUpdate(IFramework fw)
+    {
+        if (objectTable.Length == 0 || objectTable[0] is not IPlayerCharacter player) return;
+        var jobId = player.ClassJob.RowId;
+        if (jobId == 0 || jobId == CurrentJobId) return;
+
+        CurrentJobId = jobId;
+        JobChanged?.Invoke(jobId);
     }
 
     private void OnDutyCompleted(object? sender, ushort territoryId)
@@ -212,5 +234,6 @@ public class CharacterTracker : IDisposable
         clientState.Login -= OnLogin;
         clientState.Logout -= OnLogout;
         dutyState.DutyCompleted -= OnDutyCompleted;
+        framework.Update -= OnJobWatchUpdate;
     }
 }
